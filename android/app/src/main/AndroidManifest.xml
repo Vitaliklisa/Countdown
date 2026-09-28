@@ -14,11 +14,23 @@
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
             android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
                 </activity>
+
+                <!--
+                  Declares the Android v2 embedding.
+
+                  Flutter refuses to build without this: `computeEmbeddingVersion`
+                  returns v1 as its default and only recognises v2 if it finds this
+                  exact tag, so a manifest without it fails the appbundle step with
+                  "use of deleted Android v1 embedding" even though nothing here is v1.
+                -->
+                <meta-data
+                    android:name="flutterEmbedding"
+                    android:value="2" />
             </application>
 
             <!-- The app talks to Firebase over the network: sign-in and Firestore sync. -->
