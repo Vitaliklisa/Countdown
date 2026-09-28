@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: zulu
           java-version: "17"
@@ -58,8 +58,14 @@ jobs:
       # Unsigned on purpose: this only checks that the release build compiles
       # and that the Gradle config is sound. Signing happens locally, where the
       # keystore and its passwords live.
+      #
+      # No `--no-shrink` here, unlike the earlier workflow: that flag exists to
+      # skip R8 on a build Play would reject anyway, and running the real release
+      # pipeline is what catches a missing keep-rule before upload. If R8 ever
+      # strips something Firebase needs, the failure should surface here rather
+      # than in the Play Console.
       - name: Build app bundle
-        run: flutter build appbundle --release --no-shrink
+        run: flutter build appbundle --release
 
       - uses: actions/upload-artifact@v4
         with:
