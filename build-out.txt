@@ -27,3 +27,12 @@ Preparing "Install Android SDK Platform 35 (revision 2)".
 Installing Android SDK Platform 35 in C:\Users\Vi\AppData\Local\Android\Sdk\platforms\android-35
 "Install Android SDK Platform 35 (revision 2)" complete.
 "Install Android SDK Platform 35 (revision 2)" finished.
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+[=========                              ] 25%                                   
+Font asset "CupertinoIcons.ttf" was tree-shaken, reducing it from 257628 to 848 bytes (99.7% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 9012 bytes (99.5% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.

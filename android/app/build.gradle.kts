@@ -7,11 +7,21 @@ plugins {
 android {
     namespace = "com.until.until"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Pinned rather than taken from `flutter.ndkVersion`: an explicit version
+    // makes Gradle fetch the NDK it needs (including `llvm-strip`, which the
+    // release pipeline uses to strip native debug symbols) instead of failing
+    // when the host SDK has a different one installed.
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Required by flutter_local_notifications, which uses java.time on API
+        // levels below 26. Without this the release build fails at
+        // `:app:checkReleaseAarMetadata` with "requires core library
+        // desugaring to be enabled". The extra dependency is the desugaring
+        // runtime that back-ports those APIs.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -31,11 +41,19 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Release builds are signed with the upload key configured in
+            // key.properties. That file is deliberately not committed (see
+            // .gitignore), so CI falls back to the debug key: it proves the
+            // release build compiles without shipping a real signing key to a
+            // build server. Play uploads must use the real key locally.
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
+
+dependencies {
+    // The back-port of java.time that core library desugaring needs at runtime.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 kotlin {
