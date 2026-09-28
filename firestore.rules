@@ -44,8 +44,26 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/events/$(eventId)/participants/$(uid())).data.role;
     }
 
-    // Creator OR accepted participant — the same visibility rule the web app
-    // expresses as `buildEventVisibilityWhereClause`.
+    // Membership of a circle, checked against the denormalised `memberIds`
+    // array so it costs one document read rather than a subcollection query.
+    function isCircleMember(circleId) {
+      return signedIn()
+        && circleId != null
+        && circleId in get(/databases/$(database)/documents/circles/$(circleId)).data.memberIds;
+    }
+
+    // True when the event is shared with any circle this user belongs to.
+    // `eventCircles` is a list; rules have no loop, so the client sends the
+    // checked list back and we verify membership for each entry.
+    function isSharedWithMyCircle(circleIds) {
+      return signedIn()
+        && circleIds != null
+        && circleIds.size() > 0
+        && circleIds[0] is string
+        && isCircleMember(circleIds[0]);
+    }
+
+    // Creator, accepted participant, or a member of a circle it was shared with.
     function canRead(eventId, data) {
       return signedIn()
         && (
@@ -53,6 +71,11 @@ service cloud.firestore {
           || (
             isParticipant(eventId)
             && get(/databases/$(database)/documents/events/$(eventId)/participants/$(uid())).data.inviteStatus == 'accepted'
+          )
+          || (
+            data.sharedWithCircleIds != null
+            && data.sharedWithCircleIds.size() > 0
+            && isCircleMember(data.sharedWithCircleIds[0])
           )
         );
     }
@@ -74,7 +97,7 @@ service cloud.firestore {
     // Only the fields the editor is allowed to touch may change.
     function onlyEventFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(['title', 'description', 'at', 'updatedAt', 'deletedAt']);
+        .hasOnly(['title', 'description', 'at', 'updatedAt', 'deletedAt', 'sharedWithCircleIds', 'circleId']);
     }
 
     function validEventPayload() {
@@ -102,7 +125,6 @@ service cloud.firestore {
     // ---------- events ----------
     match /events/{eventId} {
       allow read: if canRead(eventId, resource.data);
-
       // Creating is unrestricted for a signed-in user, provided they name
       // themselves as the creator.
       allow create: if signedIn() && validEventPayload();
@@ -200,6 +222,121 @@ service cloud.firestore {
         );
 
       allow delete: if signedIn() && resource.data.invitedBy == uid();
+    }
+
+    // ---------- circles ----------
+    //
+    // A circle is a standing group. Membership is the whole permission model:
+    // you can see a circle (and the countdowns shared with it) if your uid is
+    // in `memberIds`.
+    match /circles/{circleId} {
+      allow read: if signedIn()
+        && uid() in resource.data.memberIds;
+
+      allow create: if signedIn()
+        && request.resource.data.ownerId == uid()
+        && request.resource.data.memberIds == [uid()]
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60;
+
+      // The owner may rename or change the emoji. A member may only touch
+      // `memberIds`, and only by adding or removing their own uid — that covers
+      // joining by invitation and leaving, and nothing else.
+      //
+      // Rules have no loop, so the two allowed shapes are checked explicitly
+      // rather than "the diff is exactly my uid":
+      //   join  -> new list = old list + me
+      //   leave -> new list = old list - me
+      allow update: if signedIn()
+        && (
+          (resource.data.ownerId == uid()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'emoji', 'memberIds']))
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
+            && (
+              (request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+                && uid() in request.resource.data.memberIds
+                && !(uid() in resource.data.memberIds))
+              || (request.resource.data.memberIds.size() == resource.data.memberIds.size() - 1
+                && !(uid() in request.resource.data.memberIds)
+                && uid() in resource.data.memberIds)
+            )
+          )
+        );
+
+      allow delete: if signedIn() && resource.data.ownerId == uid();
+
+      // Members of the circle, with names and avatars for the UI.
+      match /members/{userId} {
+        allow read: if signedIn()
+          && uid() in get(/databases/$(database)/documents/circles/$(circleId)).data.memberIds;
+
+        // You add yourself (accepting an invitation). Only the circle owner may
+        // add someone else, which is what a couple auto-share does.
+        allow create, update: if signedIn()
+          && (
+            userId == uid()
+            || get(/databases/$(database)/documents/circles/$(circleId)).data.ownerId == uid()
+          );
+
+        allow delete: if signedIn()
+          && (
+            userId == uid()
+            || get(/databases/$(database)/documents/circles/$(circleId)).data.ownerId == uid()
+          );
+      }
+    }
+
+    // ---------- circle invitations ----------
+    match /circle_invitations/{inviteId} {
+      // Readable by the sender and the invited email — nobody else. The invitee
+      // is not a member yet, so this cannot be a membership check.
+      allow read: if signedIn()
+        && (
+          resource.data.invitedBy == uid()
+          || resource.data.inviteeEmail == request.auth.token.email.lower()
+        );
+
+      allow create: if signedIn()
+        && request.resource.data.invitedBy == uid()
+        && request.resource.data.inviteeEmail is string
+        && request.resource.data.inviteeEmail == request.resource.data.inviteeEmail.lower()
+        && request.resource.data.status == 'pending'
+        // Only the owner of the target circle may invite into it.
+        && get(/databases/$(database)/documents/circles/$(request.resource.data.circleId)).data.ownerId == uid();
+
+      // The invitee answers; the sender may cancel.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && (
+          resource.data.inviteeEmail == request.auth.token.email.lower()
+          || resource.data.invitedBy == uid()
+        );
+
+      allow delete: if signedIn() && resource.data.invitedBy == uid();
+    }
+
+    // ---------- invitation responses ----------
+    //
+    // One-way feedback: "your friend joined" / "your friend declined". Only the
+    // recipient reads them, and only the responder's own action creates one, so
+    // a user cannot forge an answer on someone else's behalf.
+    match /responses/{responseId} {
+      allow read: if signedIn() && resource.data.recipientId == uid();
+
+      allow create: if signedIn()
+        && request.resource.data.recipientId is string
+        && request.resource.data.responderEmail == request.auth.token.email.lower()
+        && request.resource.data.accepted is bool
+        && request.resource.data.read == false;
+
+      // Only the recipient may mark it read.
+      allow update: if signedIn()
+        && resource.data.recipientId == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      allow delete: if signedIn() && resource.data.recipientId == uid();
     }
 
     // Everything not matched above is denied.

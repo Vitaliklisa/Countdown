@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/circles.dart';
 import '../core/countdown.dart';
 import '../core/models.dart';
 
@@ -23,16 +24,26 @@ class DataFailure implements Exception {
 /// ```
 /// events/{eventId}
 ///   title, description, at, createdBy, createdAt, updatedAt
+///   circleId?, sharedWithCircleIds[]
 ///   participants/{userId}   email, role, inviteStatus, displayName, photoUrl
 ///   notes/{noteId}          userId, text, createdAt, updatedAt
+///
 /// invitations/{inviteId}    eventId, invitedBy, inviteeEmail, role, status,
 ///                           createdAt, expiresAt, eventTitle
+///
+/// circles/{circleId}        name, ownerId, memberIds[], isCouple, emoji
+///   members/{userId}        email, displayName, photoUrl, isOwner
+///
+/// circle_invitations/{id}   circleId, invitedBy, inviteeEmail, circleName,
+///                           status, createdAt, expiresAt
+///
+/// responses/{id}            recipientId, eventId, eventTitle, responderEmail,
+///                           accepted, respondedAt, read
 /// ```
 ///
-/// A user sees an event when they created it or hold a participant row — the
-/// same rule the web app expresses as `buildEventVisibilityWhereClause`. The
-/// rules file is the authority; this service deliberately mirrors it so the
-/// client fails fast with a readable message.
+/// A user sees an event when they created it, hold a participant row, or belong
+/// to a circle it was shared with. The rules file is the authority; this service
+/// deliberately mirrors it so the client fails fast with a readable message.
 class EventRepository {
   EventRepository({FirebaseFirestore? firestore, Uuid? uuid})
       : _db = firestore ?? FirebaseFirestore.instance,
@@ -41,15 +52,34 @@ class EventRepository {
   final FirebaseFirestore _db;
   final Uuid _uuid;
 
-  CollectionReference<Map<String, dynamic>> get _events => _db.collection('events');
-  CollectionReference<Map<String, dynamic>> get _invitations => _db.collection('invitations');
+  CollectionReference<Map<String, dynamic>> get _events =>
+      _db.collection('events');
 
-  /// Live stream of every event the user created or was invited to.
+  CollectionReference<Map<String, dynamic>> get _circles =>
+      _db.collection('circles');
+
+  CollectionReference<Map<String, dynamic>> get _circleInvitations =>
+      _db.collection('circle_invitations');
+
+  CollectionReference<Map<String, dynamic>> get _responses =>
+      _db.collection('responses');
+  CollectionReference<Map<String, dynamic>> get _invitations =>
+      _db.collection('invitations');
+
+  /// Live stream of every event the user created, was invited to, or can see
+  /// through a circle they belong to.
   ///
-  /// Firestore has no server-side OR and no `!=`, so the two halves are merged
-  /// here: one query on `createdBy` (filtered to non-deleted rows) and one on
-  /// participant-subcollection membership. Results are de-duplicated by id and
-  /// sorted by time, so the merged list reads "closest first" as one list.
+  /// Firestore has no server-side OR, so three feeds are merged here:
+  ///
+  /// 1. `createdBy == me` — ordered and filtered by the query itself.
+  /// 2. participant rows carrying my uid — a collection-group query that yields
+  ///    event ids, which are then fetched in a second pass.
+  /// 3. `sharedWithCircleIds` containing any of my circles — also id-only, for
+  ///    the same reason (a `array-contains-any` query cannot also be ordered by
+  ///    `at` without a composite index per circle count).
+  ///
+  /// Results are de-duplicated by id and sorted by time, so the merged list
+  /// reads "closest first" as a single list.
   Stream<List<CountdownEvent>> watchEvents(String userId) {
     final created = _events
         .where('createdBy', isEqualTo: userId)
@@ -65,31 +95,40 @@ class EventRepository {
         .where('userId', isEqualTo: userId)
         .snapshots();
 
-    // Combine the two feeds. `shared` cannot be ordered by event time (a
-    // collection-group query would need the sort key duplicated onto each
-    // participant row), so it is only used to collect ids and the full events
-    // are fetched in a second pass.
+    // The circle ids this user belongs to, live. Feeds query 3 and re-runs it
+    // when the user joins or leaves a circle.
+    final myCircles =
+        _circles.where('memberIds', arrayContains: userId).snapshots();
+
     final controller = StreamController<List<CountdownEvent>>();
 
     List<CountdownEvent> latestOwned = const [];
     Set<String> latestSharedIds = const {};
+    Set<String> latestCircleIds = const {};
     Map<String, CountdownEvent> fetchedShared = const {};
     bool disposed = false;
 
-    // Declared before `fetchShared` because that function calls it: a local
-    // function must be declared above its first use in Dart.
+    // Declared before the fetchers because local functions must appear above
+    // their first use in Dart.
     void emit() {
       // Owned events win on id collision: they are the authoritative copy and
       // are already ordered by the query.
-      final byId = <String, CountdownEvent>{for (final e in latestOwned) e.id: e};
+      final byId = <String, CountdownEvent>{
+        for (final e in latestOwned) e.id: e
+      };
       fetchedShared.forEach((id, event) => byId.putIfAbsent(id, () => event));
 
       final merged = byId.values.toList()..sort((a, b) => a.at.compareTo(b.at));
       if (!controller.isClosed) controller.add(merged);
     }
 
+    /// Runs the `whereIn` queries for whatever ids are missing from
+    /// `fetchedShared`. Both the participant feed and the circle feed write into
+    /// `latestSharedIds`, so one collect-and-fetch pass covers both.
     Future<void> fetchShared() async {
-      final wanted = latestSharedIds.where((id) => !fetchedShared.containsKey(id)).toList();
+      final wanted = latestSharedIds
+          .where((id) => !fetchedShared.containsKey(id))
+          .toList();
       if (wanted.isEmpty) return;
 
       // `whereIn` accepts 30 values per query; chunk to stay inside that.
@@ -111,29 +150,70 @@ class EventRepository {
         }
       }
       if (disposed) return;
-      fetchedShared = fetched;
+      fetchedShared = {...fetchedShared, ...fetched};
       emit();
+    }
+
+    /// Queries every event shared with any circle the user belongs to.
+    ///
+    /// Runs once per circle rather than one `array-contains-any` query: the
+    /// `any` form cannot be combined with an `orderBy` on `at` without an
+    /// index whose shape depends on how many circles are passed, whereas a
+    /// single-value `array-contains` uses the plain composite index.
+    Future<void> fetchCircleShared() async {
+      if (latestCircleIds.isEmpty) return;
+      try {
+        final snaps = await Future.wait(
+          latestCircleIds.map(
+            (circleId) => _events
+                .where('sharedWithCircleIds', arrayContains: circleId)
+                .where('deletedAt', isNull: true)
+                .get(),
+          ),
+        );
+        if (disposed) return;
+        final ids = <String>{...latestSharedIds};
+        for (final snap in snaps) {
+          for (final doc in snap.docs) {
+            // Owned events are already in `latestOwned`; skip re-fetching them.
+            if (latestOwned.any((e) => e.id == doc.id)) continue;
+            ids.add(doc.id);
+          }
+        }
+        latestSharedIds = ids;
+        await fetchShared();
+      } catch (_) {
+        // Offline or permission-denied: keep whatever is already on screen.
+      }
     }
 
     final subOwned = created.listen((snap) {
       latestOwned = snap.docs.map(_fromDoc).toList();
       emit();
     }, onError: controller.addError);
+
     final subShared = shared.listen((snap) {
-      final ids = <String>{};
-      for (final doc in snap.docs) {
-        final parent = doc.reference.parent.parent;
-        if (parent != null) ids.add(parent.id);
-      }
+      final ids = <String>{
+        for (final doc in snap.docs)
+          if (doc.reference.parent.parent != null)
+            doc.reference.parent.parent!.id,
+      };
+      // Keep any ids discovered by the circle feed, which shares this set.
       latestSharedIds = ids;
       unawaited(fetchShared());
       emit();
+    }, onError: controller.addError);
+
+    final subCircles = myCircles.listen((snap) {
+      latestCircleIds = snap.docs.map((d) => d.id).toSet();
+      unawaited(fetchCircleShared());
     }, onError: controller.addError);
 
     controller.onCancel = () async {
       disposed = true;
       await subOwned.cancel();
       await subShared.cancel();
+      await subCircles.cancel();
     };
 
     return controller.stream;
@@ -148,11 +228,8 @@ class EventRepository {
   }
 
   /// Live stream of one event's participants.
-  Stream<List<Participant>> watchParticipants(String eventId) => _events
-      .doc(eventId)
-      .collection('participants')
-      .snapshots()
-      .map((snap) =>
+  Stream<List<Participant>> watchParticipants(String eventId) =>
+      _events.doc(eventId).collection('participants').snapshots().map((snap) =>
           snap.docs.map((d) => Participant.fromMap(d.id, d.data())).toList());
 
   /// Live stream of an event's notes, newest last.
@@ -161,20 +238,34 @@ class EventRepository {
       .collection('notes')
       .orderBy('createdAt')
       .snapshots()
-      .map((snap) => snap.docs.map((d) => EventNote.fromMap(d.data())).toList());
+      .map(
+          (snap) => snap.docs.map((d) => EventNote.fromMap(d.data())).toList());
 
   Future<CountdownEvent> fetchEvent(String eventId) async {
     final doc = await _events.doc(eventId).get();
-    if (!doc.exists) throw const DataFailure('That countdown no longer exists.');
-    final participants = await _events.doc(eventId).collection('participants').get();
+    if (!doc.exists) {
+      throw const DataFailure('That countdown no longer exists.');
+    }
+    final participants =
+        await _events.doc(eventId).collection('participants').get();
     return CountdownEvent.fromDoc(doc.id, doc.data() ?? {}).copyWith(
-      participants:
-          participants.docs.map((d) => Participant.fromMap(d.id, d.data())).toList(),
+      participants: participants.docs
+          .map((d) => Participant.fromMap(d.id, d.data()))
+          .toList(),
     );
   }
 
   /// Creates a countdown. The creator is written as an accepted admin in the
   /// same batch, so the event is never briefly ownerless.
+  ///
+  /// **Couple sharing.** If `autoShareCircleIds` contains a couple circle, the
+  /// countdown is attached to it immediately and every member gets an accepted
+  /// participant row — no invitation, nothing to accept. That is the point of a
+  /// couple circle: what one of you counts down to, both of you see.
+  ///
+  /// A non-couple circle passed in the same list is attached for visibility but
+  /// its members still receive an ordinary invitation, so a friend group is
+  /// never silently subscribed to someone's private plans.
   Future<CountdownEvent> createEvent({
     required String userId,
     required String email,
@@ -183,8 +274,12 @@ class EventRepository {
     required DateTime at,
     String? displayName,
     String? photoUrl,
+    List<String> autoShareCircleIds = const [],
+    List<Circle> circles = const [],
   }) async {
-    if (title.trim().isEmpty) throw const DataFailure('Give this countdown a title.');
+    if (title.trim().isEmpty) {
+      throw const DataFailure('Give this countdown a title.');
+    }
     if (!at.isAfter(DateTime.now())) {
       throw const DataFailure('Pick a moment still ahead of you.');
     }
@@ -193,6 +288,13 @@ class EventRepository {
     final now = DateTime.now();
     final batch = _db.batch();
 
+    // Only circles the creator actually belongs to are honoured — the same
+    // check the security rule makes, done here so the client fails early.
+    final validCircleIds = autoShareCircleIds
+        .where((circleId) =>
+            circles.any((c) => c.id == circleId && c.contains(userId)))
+        .toList();
+
     batch.set(_events.doc(id), {
       'title': title.trim(),
       'description': description.trim(),
@@ -200,15 +302,68 @@ class EventRepository {
       'createdBy': userId,
       'createdAt': Timestamp.fromDate(now),
       'updatedAt': Timestamp.fromDate(now),
+      if (validCircleIds.isNotEmpty) 'sharedWithCircleIds': validCircleIds,
     });
     batch.set(_events.doc(id).collection('participants').doc(userId), {
-      'email': email,
+      'email': email.toLowerCase(),
       'role': ParticipantRole.admin.name,
       'inviteStatus': InviteStatus.accepted.name,
       'joinedAt': Timestamp.fromDate(now),
       if (displayName != null) 'displayName': displayName,
       if (photoUrl != null) 'photoUrl': photoUrl,
     });
+
+    final autoParticipants = <Participant>[];
+    for (final circleId in validCircleIds) {
+      final circle = circles.firstWhere((c) => c.id == circleId);
+      // Invitations only apply to circles that are not the automatic kind.
+      if (!circle.isCouple) {
+        batch.set(
+          _events.doc(id).collection('participants').doc('circle:${circle.id}'),
+          {
+            'kind': 'circle',
+            'circleId': circle.id,
+            'circleName': circle.name,
+            'email': '',
+            'role': ParticipantRole.viewer.name,
+            'inviteStatus': InviteStatus.accepted.name,
+            'joinedAt': Timestamp.fromDate(now),
+          },
+          SetOptions(merge: true),
+        );
+        continue;
+      }
+
+      // A couple circle: every member joins silently, as an editor, so either
+      // partner can reshape the plan.
+      for (final member in circle.members) {
+        if (member.userId == userId) continue;
+        batch.set(
+          _events.doc(id).collection('participants').doc(member.userId),
+          {
+            'email': member.email,
+            'role': ParticipantRole.editor.name,
+            'inviteStatus': InviteStatus.accepted.name,
+            'joinedAt': Timestamp.fromDate(now),
+            if (member.displayName != null) 'displayName': member.displayName,
+            if (member.photoUrl != null) 'photoUrl': member.photoUrl,
+          },
+          SetOptions(merge: true),
+        );
+        autoParticipants.add(
+          Participant(
+            userId: member.userId,
+            email: member.email,
+            role: ParticipantRole.editor,
+            inviteStatus: InviteStatus.accepted,
+            displayName: member.displayName,
+            photoUrl: member.photoUrl,
+            joinedAt: now,
+          ),
+        );
+      }
+    }
+
     await batch.commit();
 
     return CountdownEvent(
@@ -219,6 +374,7 @@ class EventRepository {
       createdBy: userId,
       createdAt: now,
       updatedAt: now,
+      sharedWithCircleIds: validCircleIds,
       participants: [
         Participant(
           userId: userId,
@@ -229,6 +385,7 @@ class EventRepository {
           photoUrl: photoUrl,
           joinedAt: now,
         ),
+        ...autoParticipants,
       ],
     );
   }
@@ -241,9 +398,12 @@ class EventRepository {
     required DateTime at,
   }) async {
     if (!event.canEdit(userId)) {
-      throw const DataFailure('Only admins and editors can change this countdown.');
+      throw const DataFailure(
+          'Only admins and editors can change this countdown.');
     }
-    if (title.trim().isEmpty) throw const DataFailure('Give this countdown a title.');
+    if (title.trim().isEmpty) {
+      throw const DataFailure('Give this countdown a title.');
+    }
     if (!at.isAfter(DateTime.now())) {
       throw const DataFailure('Pick a moment still ahead of you.');
     }
@@ -259,7 +419,8 @@ class EventRepository {
   /// Soft-deletes by stamping `deletedAt`, exactly like the web app: the
   /// document survives so an accidental delete can be recovered, but every read
   /// filters it out.
-  Future<void> deleteEvent({required CountdownEvent event, required String userId}) async {
+  Future<void> deleteEvent(
+      {required CountdownEvent event, required String userId}) async {
     if (!event.canManage(userId)) {
       throw const DataFailure('Only the owner can delete this countdown.');
     }
@@ -292,7 +453,11 @@ class EventRepository {
     }
 
     if (knownUserId != null) {
-      await _events.doc(event.id).collection('participants').doc(knownUserId).set({
+      await _events
+          .doc(event.id)
+          .collection('participants')
+          .doc(knownUserId)
+          .set({
         'email': target,
         'role': role.name,
         'inviteStatus': InviteStatus.pending.name,
@@ -311,7 +476,8 @@ class EventRepository {
       'role': role.name,
       'status': InviteStatus.pending.name,
       'createdAt': Timestamp.fromDate(DateTime.now()),
-      'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 30))),
+      'expiresAt':
+          Timestamp.fromDate(DateTime.now().add(const Duration(days: 30))),
       'eventTitle': event.title,
     });
   }
@@ -322,7 +488,11 @@ class EventRepository {
     required Participant participant,
     required ParticipantRole role,
   }) async {
-    await _events.doc(eventId).collection('participants').doc(participant.userId).update({
+    await _events
+        .doc(eventId)
+        .collection('participants')
+        .doc(participant.userId)
+        .update({
       'role': role.name,
     });
   }
@@ -341,10 +511,14 @@ class EventRepository {
             .toList());
   }
 
-  /// Accepts an invitation addressed to the signed-in user.
+  /// Accepts an invitation addressed to the signed-in user and tells the
+  /// inviter about it.
   ///
   /// The invitation was matched by the caller's own verified email, so a user
-  /// can only ever accept an invite sent to them.
+  /// can only ever accept an invite sent to them. The participant row and the
+  /// invitation status are written in one batch, and the notification to the
+  /// inviter is a separate document so a failure to notify never costs the user
+  /// their join.
   Future<void> acceptInvitation({
     required Invitation invitation,
     required String userId,
@@ -352,10 +526,7 @@ class EventRepository {
     String? displayName,
     String? photoUrl,
   }) async {
-    if (invitation.isExpired) throw const DataFailure('That invitation has expired.');
-    if (invitation.status != InviteStatus.pending) {
-      throw const DataFailure('That invitation is no longer pending.');
-    }
+    _guardInvitation(invitation);
 
     final batch = _db.batch();
     batch.set(
@@ -370,12 +541,313 @@ class EventRepository {
       },
       SetOptions(merge: true),
     );
-    batch.update(_invitations.doc(invitation.id), {'status': InviteStatus.accepted.name});
+    batch.update(_invitations.doc(invitation.id),
+        {'status': InviteStatus.accepted.name});
+    await batch.commit();
+
+    // Best-effort: the user has already joined, so a notify failure is not
+    // worth surfacing as an error.
+    await _notifyInviter(
+      inviterId: invitation.invitedBy,
+      eventId: invitation.eventId,
+      eventTitle: invitation.eventTitle,
+      responderEmail: email,
+      responderName: displayName,
+      accepted: true,
+    );
+  }
+
+  Future<void> rejectInvitation(
+    Invitation invitation, {
+    String? responderEmail,
+    String? responderName,
+  }) async {
+    await _invitations.doc(invitation.id).update(
+      {'status': InviteStatus.rejected.name},
+    );
+    await _notifyInviter(
+      inviterId: invitation.invitedBy,
+      eventId: invitation.eventId,
+      eventTitle: invitation.eventTitle,
+      responderEmail: responderEmail ?? '',
+      responderName: responderName,
+      accepted: false,
+    );
+  }
+
+  void _guardInvitation(Invitation invitation) {
+    if (invitation.isExpired) {
+      throw const DataFailure('That invitation has expired.');
+    }
+    if (invitation.status != InviteStatus.pending) {
+      throw const DataFailure('That invitation is no longer pending.');
+    }
+  }
+
+  /// Leaves a one-way note telling the inviter what the invitee chose.
+  Future<void> _notifyInviter({
+    required String inviterId,
+    required String eventId,
+    required String eventTitle,
+    required String responderEmail,
+    required bool accepted,
+    String? responderName,
+  }) async {
+    // Inviting yourself is possible when the same person owns two accounts;
+    // no point notifying them about their own action.
+    if (inviterId.isEmpty) return;
+
+    try {
+      await _responses.doc(_uuid.v4()).set({
+        'recipientId': inviterId,
+        'eventId': eventId,
+        'eventTitle': eventTitle.isEmpty ? 'your countdown' : eventTitle,
+        'responderEmail': responderEmail.toLowerCase(),
+        if (responderName != null) 'responderName': responderName,
+        'accepted': accepted,
+        'respondedAt': Timestamp.fromDate(DateTime.now()),
+        'read': false,
+      });
+    } catch (_) {
+      // The response document is a courtesy; never fail the user's action on it.
+    }
+  }
+
+  /// Live stream of the answers to invitations this user sent.
+  Stream<List<InvitationResponse>> watchResponses(String userId) {
+    if (userId.isEmpty) return Stream.value(const []);
+    return _responses
+        .where('recipientId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+      final items = snap.docs
+          .map((d) => InvitationResponse.fromDoc(d.id, d.data()))
+          .toList()
+        // Newest first, so an unread answer is at the top of the list.
+        ..sort((a, b) => b.respondedAt.compareTo(a.respondedAt));
+      return items;
+    });
+  }
+
+  Future<void> markResponseRead(String responseId) async {
+    await _responses.doc(responseId).update({'read': true});
+  }
+
+  // ---------------------------------------------------------------------------
+  // Circles
+  // ---------------------------------------------------------------------------
+
+  /// Live stream of the circles this user belongs to.
+  Stream<List<Circle>> watchCircles(String userId) {
+    return _circles.where('memberIds', arrayContains: userId).snapshots().map(
+        (snap) => snap.docs.map((d) => Circle.fromDoc(d.id, d.data())).toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt)));
+  }
+
+  /// Live stream of a circle's members, hydrated from its `members`
+  /// subcollection so the UI can show names and avatars.
+  Stream<List<CircleMember>> watchCircleMembers(String circleId) {
+    return _circles.doc(circleId).collection('members').snapshots().map(
+        (snap) => snap.docs
+            .map((d) => CircleMember.fromMap(d.id, d.data()))
+            .toList());
+  }
+
+  /// Creates a circle. The owner is written as a member in the same batch, so
+  /// the circle always has at least one person who can see it.
+  Future<Circle> createCircle({
+    required String ownerId,
+    required String ownerEmail,
+    required String name,
+    String? ownerName,
+    String? ownerPhotoUrl,
+    String? emoji,
+    bool isCouple = false,
+  }) async {
+    if (name.trim().isEmpty) {
+      throw const DataFailure('Give this circle a name.');
+    }
+
+    final id = _uuid.v4();
+    final now = DateTime.now();
+    final batch = _db.batch();
+
+    batch.set(_circles.doc(id), {
+      'name': name.trim(),
+      'ownerId': ownerId,
+      'createdAt': Timestamp.fromDate(now),
+      'isCouple': isCouple,
+      if (emoji != null) 'emoji': emoji,
+      'memberIds': [ownerId],
+    });
+    batch.set(_circles.doc(id).collection('members').doc(ownerId), {
+      'email': ownerEmail.toLowerCase(),
+      'isOwner': true,
+      'joinedAt': Timestamp.fromDate(now),
+      if (ownerName != null) 'displayName': ownerName,
+      if (ownerPhotoUrl != null) 'photoUrl': ownerPhotoUrl,
+    });
+    await batch.commit();
+
+    return Circle(
+      id: id,
+      name: name.trim(),
+      ownerId: ownerId,
+      createdAt: now,
+      emoji: emoji,
+      isCouple: isCouple,
+      memberIds: [ownerId],
+    );
+  }
+
+  /// Invites an email into a circle.
+  ///
+  /// If the address already has an account the invitation is still issued as a
+  /// pending invitation rather than an instant join — joining a standing group
+  /// should always be the invitee's choice, in contrast to a countdown shared
+  /// with an existing collaborator.
+  Future<void> inviteToCircle({
+    required Circle circle,
+    required String inviterId,
+    required String email,
+    String? inviterName,
+    ParticipantRole role = ParticipantRole.editor,
+  }) async {
+    if (!circle.isOwner(inviterId)) {
+      throw const DataFailure('Only the circle owner can invite people.');
+    }
+    final target = email.trim().toLowerCase();
+    if (target.isEmpty || !target.contains('@')) {
+      throw const DataFailure('Enter a valid email address.');
+    }
+    if (circle.members.any((m) => m.email == target)) {
+      throw DataFailure('$target is already in “${circle.name}”.');
+    }
+
+    await _circleInvitations.doc(_uuid.v4()).set({
+      'circleId': circle.id,
+      'invitedBy': inviterId,
+      if (inviterName != null) 'invitedByName': inviterName,
+      'inviteeEmail': target,
+      'circleName': circle.name,
+      'isCouple': circle.isCouple,
+      // `role` is reserved for a future per-circle permission model; today every
+      // member of a circle can create and see its countdowns.
+      'role': role.name,
+      'status': InviteStatus.pending.name,
+      'createdAt': Timestamp.fromDate(DateTime.now()),
+      'expiresAt':
+          Timestamp.fromDate(DateTime.now().add(const Duration(days: 30))),
+    });
+  }
+
+  /// Live stream of pending circle invitations addressed to this email.
+  Stream<List<CircleInvitation>> watchCircleInvitations(String email) {
+    final normalised = email.trim().toLowerCase();
+    if (normalised.isEmpty) return Stream.value(const []);
+    return _circleInvitations
+        .where('inviteeEmail', isEqualTo: normalised)
+        .where('status', isEqualTo: InviteStatus.pending.name)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => CircleInvitation.fromDoc(d.id, d.data()))
+            .where((invite) => !invite.isExpired)
+            .toList());
+  }
+
+  /// Joins the circle an invitation points at.
+  ///
+  /// Writes the member row, appends the uid to the circle's denormalised
+  /// `memberIds` (so security rules can check membership in one read), and
+  /// flips the invitation to accepted. All three in one batch: a partial write
+  /// would leave someone invited but not a member.
+  Future<void> acceptCircleInvitation({
+    required CircleInvitation invitation,
+    required String userId,
+    required String email,
+    String? displayName,
+    String? photoUrl,
+  }) async {
+    if (invitation.isExpired) {
+      throw const DataFailure('That invitation has expired.');
+    }
+
+    final batch = _db.batch();
+    batch.set(
+      _circles.doc(invitation.circleId).collection('members').doc(userId),
+      {
+        'email': email.toLowerCase(),
+        'isOwner': false,
+        'joinedAt': Timestamp.fromDate(DateTime.now()),
+        if (displayName != null) 'displayName': displayName,
+        if (photoUrl != null) 'photoUrl': photoUrl,
+      },
+      SetOptions(merge: true),
+    );
+    batch.update(_circles.doc(invitation.circleId), {
+      'memberIds': FieldValue.arrayUnion([userId]),
+    });
+    batch.update(_circleInvitations.doc(invitation.id),
+        {'status': InviteStatus.accepted.name});
     await batch.commit();
   }
 
-  Future<void> rejectInvitation(Invitation invitation) async {
-    await _invitations.doc(invitation.id).update({'status': InviteStatus.rejected.name});
+  Future<void> rejectCircleInvitation(CircleInvitation invitation) async {
+    await _circleInvitations
+        .doc(invitation.id)
+        .update({'status': InviteStatus.rejected.name});
+  }
+
+  Future<void> leaveCircle({
+    required String circleId,
+    required String userId,
+  }) async {
+    final batch = _db.batch();
+    batch.delete(_circles.doc(circleId).collection('members').doc(userId));
+    batch.update(_circles.doc(circleId), {
+      'memberIds': FieldValue.arrayRemove([userId]),
+    });
+    await batch.commit();
+  }
+
+  /// Shares (or unshares) a countdown with a circle.
+  ///
+  /// `sharedWithCircleIds` is the single source of truth for circle visibility
+  /// and is what both the client query and the security rule read, so adding
+  /// and removing are the same write.
+  Future<void> setEventCircles({
+    required CountdownEvent event,
+    required String userId,
+    required List<String> circleIds,
+  }) async {
+    if (!event.canEdit(userId)) {
+      throw const DataFailure(
+          'Only admins and editors can share this countdown.');
+    }
+    await _events.doc(event.id).update({
+      'sharedWithCircleIds': circleIds,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  /// Uses the users collection to turn an email address into an account, so an
+  /// invite can be added straight to a countdown when the person already has an
+  /// account rather than waiting for a signup.
+  Future<Map<String, String>?> lookupUserByEmail(String email) async {
+    final normalised = email.trim().toLowerCase();
+    if (normalised.isEmpty) return null;
+    try {
+      final snap = await _db
+          .collection('users')
+          .where('email', isEqualTo: normalised)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) return null;
+      final doc = snap.docs.first;
+      return {'userId': doc.id, ...doc.data().map((k, v) => MapEntry(k, '$v'))};
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> addNote({
@@ -409,8 +881,8 @@ class EventRepository {
       email: email,
       title: event.title,
       description: event.description,
-      at: DateTime(event.at.year + 1, event.at.month, event.at.day, event.at.hour,
-          event.at.minute),
+      at: DateTime(event.at.year + 1, event.at.month, event.at.day,
+          event.at.hour, event.at.minute),
       displayName: displayName,
       photoUrl: photoUrl,
     );

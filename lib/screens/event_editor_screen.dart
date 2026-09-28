@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../core/circles.dart';
 import '../core/countdown.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
@@ -35,6 +36,11 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
   bool _busy = false;
   bool _confirmDelete = false;
 
+  /// Circles this countdown will be shared with. Only used when creating: an
+  /// existing countdown manages its circles from the detail screen, where the
+  /// current sharing is visible.
+  final Set<String> _selectedCircleIds = {};
+
   /// Quick jumps for the dates people actually pick — days to years ahead.
   static const _presets = <(String, int)>[
     ('+1 week', 7),
@@ -53,7 +59,12 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
     // close enough to be real.
     final thirtyDaysOut = DateTime.now().add(const Duration(days: 30));
     _at = event?.at ??
-        DateTime(thirtyDaysOut.year, thirtyDaysOut.month, thirtyDaysOut.day, 18);
+        DateTime(
+            thirtyDaysOut.year, thirtyDaysOut.month, thirtyDaysOut.day, 18);
+
+    // Pre-tick whatever this countdown is already shared with, so editing does
+    // not silently drop a circle.
+    if (event != null) _selectedCircleIds.addAll(event.sharedWithCircleIds);
   }
 
   @override
@@ -66,7 +77,9 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _at.isAfter(DateTime.now()) ? _at : DateTime.now().add(const Duration(days: 1)),
+      initialDate: _at.isAfter(DateTime.now())
+          ? _at
+          : DateTime.now().add(const Duration(days: 1)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365 * 60)),
       builder: (context, child) => Theme(
@@ -76,7 +89,8 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
     );
     if (picked == null) return;
     setState(() {
-      _at = DateTime(picked.year, picked.month, picked.day, _at.hour, _at.minute);
+      _at =
+          DateTime(picked.year, picked.month, picked.day, _at.hour, _at.minute);
       _error = null;
     });
   }
@@ -136,6 +150,10 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
           at: _at,
           displayName: user.displayName,
           photoUrl: user.photoUrl,
+          // Circles ticked in the composer: a couple circle shares silently,
+          // any other circle's members get an invitation to accept.
+          autoShareCircleIds: _selectedCircleIds.toList(),
+          circles: ref.read(circlesProvider).valueOrNull ?? const [],
         );
       } else {
         await repository.updateEvent(
@@ -145,16 +163,29 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
           description: _description.text,
           at: _at,
         );
+        // Sharing is a separate write: `updateEvent` deliberately touches only
+        // the fields the rules allow in one diff, and circle membership is its
+        // own permission decision.
+        await repository.setEventCircles(
+          event: existing,
+          userId: user.id,
+          circleIds: _selectedCircleIds.toList(),
+        );
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(existing == null ? 'Countdown created.' : 'Changes saved.')),
+        SnackBar(
+            content: Text(
+                existing == null ? 'Countdown created.' : 'Changes saved.')),
       );
       context.pop();
     } on DataFailure catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'Could not save. Check your connection and retry.');
+      if (mounted) {
+        setState(
+            () => _error = 'Could not save. Check your connection and retry.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -167,7 +198,9 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
 
     setState(() => _busy = true);
     try {
-      await ref.read(eventRepositoryProvider).deleteEvent(event: existing, userId: user.id);
+      await ref
+          .read(eventRepositoryProvider)
+          .deleteEvent(event: existing, userId: user.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Countdown deleted.')),
@@ -202,7 +235,6 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
         body: _SignInPrompt(onSignIn: () => context.push(Routes.login)),
       );
     }
-
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -249,9 +281,9 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
                   children: [
                     for (final (label, days) in _presets)
                       _PresetChip(
-                  label: label,
-                  onTap: canEdit ? () => _applyPreset(days) : null,
-                ),
+                        label: label,
+                        onTap: canEdit ? () => _applyPreset(days) : null,
+                      ),
                   ],
                 ),
               ],
@@ -280,6 +312,17 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
             ),
             const SizedBox(height: 14),
             _PreviewStrip(at: _at),
+            const SizedBox(height: 22),
+            _CirclePicker(
+              selected: _selectedCircleIds,
+              onToggle: (circleId, on) => setState(() {
+                if (on) {
+                  _selectedCircleIds.add(circleId);
+                } else {
+                  _selectedCircleIds.remove(circleId);
+                }
+              }),
+            ),
             if (editing) ...[
               const SizedBox(height: 28),
               Divider(color: colors.border),
@@ -291,10 +334,12 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.error_outline_rounded, size: 17, color: colors.danger),
+                  Icon(Icons.error_outline_rounded,
+                      size: 17, color: colors.danger),
                   const SizedBox(width: 9),
                   Expanded(
-                    child: Text(_error!, style: TextStyle(fontSize: 13.5, color: colors.danger)),
+                    child: Text(_error!,
+                        style: TextStyle(fontSize: 13.5, color: colors.danger)),
                   ),
                 ],
               ),
@@ -320,14 +365,16 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
                       children: [
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () => setState(() => _confirmDelete = false),
+                            onPressed: () =>
+                                setState(() => _confirmDelete = false),
                             child: const Text('Keep'),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: FilledButton(
-                            style: FilledButton.styleFrom(backgroundColor: colors.danger),
+                            style: FilledButton.styleFrom(
+                                backgroundColor: colors.danger),
                             onPressed: _busy ? null : _delete,
                             child: const Text('Delete'),
                           ),
@@ -341,11 +388,16 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
             const SizedBox(height: 26),
             Row(
               children: [
-                if (editing && (widget.event?.canManage(ref.watch(currentUserProvider)?.id) ?? false))
+                if (editing &&
+                    (widget.event
+                            ?.canManage(ref.watch(currentUserProvider)?.id) ??
+                        false))
                   Padding(
                     padding: const EdgeInsets.only(right: 12),
                     child: OutlinedButton(
-                      onPressed: _busy ? null : () => setState(() => _confirmDelete = true),
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() => _confirmDelete = true),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(96, 50),
                         foregroundColor: colors.muted,
@@ -479,7 +531,8 @@ class _MomentTile extends StatelessWidget {
               const SizedBox(height: 7),
               Text(
                 value,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -510,7 +563,9 @@ class _PreviewStrip extends ConsumerWidget {
       child: Row(
         children: [
           Icon(
-            remaining.isPast ? Icons.warning_amber_rounded : Icons.hourglass_bottom_rounded,
+            remaining.isPast
+                ? Icons.warning_amber_rounded
+                : Icons.hourglass_bottom_rounded,
             size: 16,
             color: remaining.isPast ? colors.danger : colors.accent,
           ),
@@ -577,9 +632,11 @@ class _CollaboratorsState extends ConsumerState<_Collaborators> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final participants = ref.watch(participantsProvider(widget.event.id)).valueOrNull ??
-        widget.event.participants;
-    final canManage = widget.event.canManage(ref.watch(currentUserProvider)?.id);
+    final participants =
+        ref.watch(participantsProvider(widget.event.id)).valueOrNull ??
+            widget.event.participants;
+    final canManage =
+        widget.event.canManage(ref.watch(currentUserProvider)?.id);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -609,7 +666,8 @@ class _CollaboratorsState extends ConsumerState<_Collaborators> {
                 child: TextField(
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(hintText: 'name@example.com'),
+                  decoration:
+                      const InputDecoration(hintText: 'name@example.com'),
                 ),
               ),
               const SizedBox(width: 10),
@@ -636,7 +694,8 @@ class _CollaboratorsState extends ConsumerState<_Collaborators> {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                 decoration: BoxDecoration(
                   color: colors.surface,
                   borderRadius: BorderRadius.circular(10),
@@ -658,12 +717,14 @@ class _CollaboratorsState extends ConsumerState<_Collaborators> {
                             participant.email,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w500),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             '${_roleLabel(participant.role)} · ${participant.inviteStatus.name}',
-                            style: TextStyle(fontSize: 11.5, color: colors.subtle),
+                            style:
+                                TextStyle(fontSize: 11.5, color: colors.subtle),
                           ),
                         ],
                       ),
@@ -738,15 +799,20 @@ class _RoleDropdown extends StatelessWidget {
             if (role != null) onChanged(role);
           },
           items: const [
-            DropdownMenuItem(value: ParticipantRole.viewer, child: Text('Viewer')),
-            DropdownMenuItem(value: ParticipantRole.editor, child: Text('Editor')),
-            DropdownMenuItem(value: ParticipantRole.admin, child: Text('Admin')),
+            DropdownMenuItem(
+                value: ParticipantRole.viewer, child: Text('Viewer')),
+            DropdownMenuItem(
+                value: ParticipantRole.editor, child: Text('Editor')),
+            DropdownMenuItem(
+                value: ParticipantRole.admin, child: Text('Admin')),
           ],
         ),
       ),
     );
   }
-}/// Shown when someone reaches the editor without an account.
+}
+
+/// Shown when someone reaches the editor without an account.
 ///
 /// The app deliberately lets a visitor browse and try the countdown, but a
 /// countdown is owned by its creator in Firestore, so saving needs a uid.
@@ -773,7 +839,8 @@ class _SignInPrompt extends StatelessWidget {
                   color: colors.surface,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(Icons.lock_outline_rounded, size: 24, color: colors.accent),
+                child: Icon(Icons.lock_outline_rounded,
+                    size: 24, color: colors.accent),
               ),
               const SizedBox(height: 22),
               Text(
@@ -786,7 +853,8 @@ class _SignInPrompt extends StatelessWidget {
                 'Countdowns live in your account, so they follow you to every '
                 'device and can be shared with other people.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, height: 1.5, color: colors.muted),
+                style:
+                    TextStyle(fontSize: 14, height: 1.5, color: colors.muted),
               ),
               const SizedBox(height: 26),
               FilledButton(onPressed: onSignIn, child: const Text('Sign in')),
@@ -794,6 +862,97 @@ class _SignInPrompt extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Ticks the circles this countdown is shared with.
+///
+/// Renders nothing when the user has no circles — an empty picker would just be
+/// noise on the screen of someone who has not set any up yet.
+class _CirclePicker extends ConsumerWidget {
+  const _CirclePicker({required this.selected, required this.onToggle});
+
+  final Set<String> selected;
+  final void Function(String circleId, bool selected) onToggle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final circles = ref.watch(circlesProvider).valueOrNull ?? const <Circle>[];
+    if (circles.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.groups_outlined, size: 16, color: colors.muted),
+            const SizedBox(width: 9),
+            const Text(
+              'Share with',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'A couple circle shares instantly. Other circles get an invitation.',
+          style: TextStyle(fontSize: 12, color: colors.subtle),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final circle in circles)
+              GestureDetector(
+                onTap: () => onToggle(circle.id, !selected.contains(circle.id)),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: selected.contains(circle.id)
+                        ? colors.accentSoft
+                        : colors.surface,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: selected.contains(circle.id)
+                          ? colors.accent
+                          : colors.border,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        circle.emoji ?? (circle.isCouple ? '💞' : '👥'),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        circle.name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: selected.contains(circle.id)
+                              ? colors.accent
+                              : colors.fg,
+                        ),
+                      ),
+                      if (selected.contains(circle.id)) ...[
+                        const SizedBox(width: 7),
+                        Icon(Icons.check_rounded,
+                            size: 14, color: colors.accent),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

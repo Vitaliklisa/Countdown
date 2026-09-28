@@ -20,7 +20,8 @@ enum ParticipantRole {
 
   /// Admins can invite, rename, reschedule and delete. Editors can only
   /// rename/reschedule. Viewers can only look at the countdown.
-  bool get canEdit => this == ParticipantRole.admin || this == ParticipantRole.editor;
+  bool get canEdit =>
+      this == ParticipantRole.admin || this == ParticipantRole.editor;
   bool get canManage => this == ParticipantRole.admin;
 }
 
@@ -97,7 +98,8 @@ class Participant {
       );
 
   String get initials {
-    final source = (displayName?.trim().isNotEmpty ?? false) ? displayName! : email;
+    final source =
+        (displayName?.trim().isNotEmpty ?? false) ? displayName! : email;
     if (source.isEmpty) return 'U';
     final parts = source.trim().split(RegExp(r'\s+'));
     if (parts.length >= 2 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
@@ -152,6 +154,8 @@ class CountdownEvent {
     required this.updatedAt,
     this.participants = const [],
     this.notes = const [],
+    this.circleId,
+    this.sharedWithCircleIds = const [],
   });
 
   final String id;
@@ -163,6 +167,20 @@ class CountdownEvent {
   final DateTime updatedAt;
   final List<Participant> participants;
   final List<EventNote> notes;
+
+  /// If set, this countdown belongs to a circle and is visible to every member.
+  /// A couple circle supersedes it — see `sharedWithCircleIds`.
+  final String? circleId;
+
+  /// Every circle this countdown is shared with.
+  ///
+  /// A countdown keeps its own `circleId` for the common single-circle case,
+  /// but a couple who are each in their own family circle can share one
+  /// countdown with both, which is why this is a list.
+  final List<String> sharedWithCircleIds;
+
+  bool get isShared =>
+      participants.isNotEmpty || sharedWithCircleIds.isNotEmpty;
 
   bool get isPast => !at.isAfter(DateTime.now());
 
@@ -192,6 +210,15 @@ class CountdownEvent {
   factory CountdownEvent.fromDoc(String id, Map<String, dynamic> map) {
     final rawParticipants = map['participants'];
     final rawNotes = map['notes'];
+    final rawCircles = map['sharedWithCircleIds'];
+    final circleId = map['circleId'] as String?;
+
+    // A countdown written before circles existed, or shared with a single
+    // circle, still needs to answer `sharedWithCircleIds` correctly.
+    final circles = <String>{
+      if (circleId != null && circleId.isNotEmpty) circleId,
+      if (rawCircles is List) ...rawCircles.whereType<String>(),
+    };
 
     return CountdownEvent(
       id: id,
@@ -201,6 +228,8 @@ class CountdownEvent {
       createdBy: (map['createdBy'] as String?) ?? '',
       createdAt: _parseDate(map['createdAt']) ?? DateTime.now(),
       updatedAt: _parseDate(map['updatedAt']) ?? DateTime.now(),
+      circleId: circleId,
+      sharedWithCircleIds: circles.toList(),
       participants: rawParticipants is Map
           ? rawParticipants.entries
               .map((e) => Participant.fromMap(
@@ -228,6 +257,9 @@ class CountdownEvent {
         'createdBy': createdBy,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
+        if (circleId != null) 'circleId': circleId,
+        if (sharedWithCircleIds.isNotEmpty)
+          'sharedWithCircleIds': sharedWithCircleIds,
       };
 
   CountdownEvent copyWith({
@@ -237,6 +269,8 @@ class CountdownEvent {
     DateTime? updatedAt,
     List<Participant>? participants,
     List<EventNote>? notes,
+    String? circleId,
+    List<String>? sharedWithCircleIds,
   }) =>
       CountdownEvent(
         id: id,
@@ -248,6 +282,8 @@ class CountdownEvent {
         updatedAt: updatedAt ?? this.updatedAt,
         participants: participants ?? this.participants,
         notes: notes ?? this.notes,
+        circleId: circleId ?? this.circleId,
+        sharedWithCircleIds: sharedWithCircleIds ?? this.sharedWithCircleIds,
       );
 }
 

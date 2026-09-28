@@ -86,7 +86,8 @@ class _ArrivalCelebrationState extends State<ArrivalCelebration>
                             height: 56 + t * 20,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: colors.accent, width: 2),
+                              border:
+                                  Border.all(color: colors.accent, width: 2),
                             ),
                           ),
                         );
@@ -99,7 +100,8 @@ class _ArrivalCelebrationState extends State<ArrivalCelebration>
                         color: colors.accentSoft,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.check_rounded, size: 32, color: colors.accent),
+                      child: Icon(Icons.check_rounded,
+                          size: 32, color: colors.accent),
                     ),
                   ],
                 ),
@@ -107,7 +109,10 @@ class _ArrivalCelebrationState extends State<ArrivalCelebration>
               const SizedBox(height: 18),
               Text(
                 'THE DAY HAS COME',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.accent),
+                style: Theme.of(context)
+                    .textTheme
+                    .labelSmall
+                    ?.copyWith(color: colors.accent),
               ),
               const SizedBox(height: 10),
               Text(
@@ -115,7 +120,8 @@ class _ArrivalCelebrationState extends State<ArrivalCelebration>
                     ? '${widget.title} is here — ${widget.description}'
                     : '${widget.title} is here — enjoy every minute of it.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, height: 1.5, color: colors.muted),
+                style:
+                    TextStyle(fontSize: 14, height: 1.5, color: colors.muted),
               ),
             ],
           ),

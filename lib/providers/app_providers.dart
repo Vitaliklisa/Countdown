@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/circles.dart';
 import '../core/models.dart';
 import '../services/auth_service.dart';
 import '../services/event_repository.dart';
@@ -11,7 +12,8 @@ import '../services/event_repository.dart';
 /// Overridden in `main()` (and in tests) with a ready-to-use instance.
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
-final eventRepositoryProvider = Provider<EventRepository>((ref) => EventRepository());
+final eventRepositoryProvider =
+    Provider<EventRepository>((ref) => EventRepository());
 
 /// The signed-in user, or `null`. `AsyncValue.loading` covers the first frame,
 /// before Firebase has restored the persisted session.
@@ -42,6 +44,48 @@ final invitationsProvider = StreamProvider<List<Invitation>>((ref) {
   return ref.watch(eventRepositoryProvider).watchInvitations(user.email);
 });
 
+/// Pending circle invitations addressed to the signed-in user's email.
+final circleInvitationsProvider = StreamProvider<List<CircleInvitation>>((ref) {
+  final user = ref.watch(currentUserProvider);
+  if (user == null || user.email.isEmpty) return Stream.value(const []);
+  return ref.watch(eventRepositoryProvider).watchCircleInvitations(user.email);
+});
+
+/// Circles the signed-in user belongs to.
+final circlesProvider = StreamProvider<List<Circle>>((ref) {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return Stream.value(const []);
+  return ref.watch(eventRepositoryProvider).watchCircles(user.id);
+});
+
+/// Members of one circle, hydrated with names and avatars.
+final circleMembersProvider =
+    StreamProvider.family<List<CircleMember>, String>((ref, circleId) {
+  return ref.watch(eventRepositoryProvider).watchCircleMembers(circleId);
+});
+
+/// Answers to invitations the signed-in user sent — the "your friend joined"
+/// feedback.
+final responsesProvider = StreamProvider<List<InvitationResponse>>((ref) {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return Stream.value(const []);
+  return ref.watch(eventRepositoryProvider).watchResponses(user.id);
+});
+
+/// How many answers are still unread, for the badge on the home screen.
+final unreadResponseCountProvider = Provider<int>((ref) {
+  final responses = ref.watch(responsesProvider).valueOrNull ?? const [];
+  return responses.where((r) => !r.read).length;
+});
+
+/// Everything awaiting the signed-in user's answer: countdown invites and
+/// circle invites, in one list for a single inbox.
+final pendingInviteCountProvider = Provider<int>((ref) {
+  final events = ref.watch(invitationsProvider).valueOrNull ?? const [];
+  final circles = ref.watch(circleInvitationsProvider).valueOrNull ?? const [];
+  return events.length + circles.length;
+});
+
 /// Participants of one event, live.
 final participantsProvider =
     StreamProvider.family<List<Participant>, String>((ref, eventId) {
@@ -49,7 +93,8 @@ final participantsProvider =
 });
 
 /// Notes on one event, live, oldest first.
-final notesProvider = StreamProvider.family<List<EventNote>, String>((ref, eventId) {
+final notesProvider =
+    StreamProvider.family<List<EventNote>, String>((ref, eventId) {
   return ref.watch(eventRepositoryProvider).watchNotes(eventId);
 });
 
@@ -63,7 +108,8 @@ final selectedEventIdProvider = StateProvider<String?>((ref) => null);
 /// the soonest future event, and if everything is in the past, the most recent
 /// one.
 final featuredEventProvider = Provider<CountdownEvent?>((ref) {
-  final events = ref.watch(eventsProvider).valueOrNull ?? const <CountdownEvent>[];
+  final events =
+      ref.watch(eventsProvider).valueOrNull ?? const <CountdownEvent>[];
   if (events.isEmpty) return null;
 
   final selectedId = ref.watch(selectedEventIdProvider);
@@ -85,8 +131,8 @@ final featuredEventProvider = Provider<CountdownEvent?>((ref) {
 /// Ticks once a second so every countdown face updates in lockstep, and the
 /// whole app re-renders from one timer instead of one per widget.
 final clockProvider = StreamProvider<DateTime>((ref) {
-  return Stream<DateTime>.periodic(const Duration(seconds: 1), (_) => DateTime.now())
-      .asBroadcastStream();
+  return Stream<DateTime>.periodic(
+      const Duration(seconds: 1), (_) => DateTime.now()).asBroadcastStream();
 });
 
 /// Theme mode, persisted per device (not per account — appearance is a device
@@ -100,8 +146,8 @@ class ThemeModeController extends StateNotifier<ThemeMode> {
       state = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
 }
 
-final themeModeProvider =
-    StateNotifierProvider<ThemeModeController, ThemeMode>((ref) => ThemeModeController());
+final themeModeProvider = StateNotifierProvider<ThemeModeController, ThemeMode>(
+    (ref) => ThemeModeController());
 
 /// Small helper so screens can run an action and show either a success or a
 /// failure message without repeating try/catch.
@@ -124,7 +170,8 @@ Future<String?> runAction(
     messenger?.showSnackBar(SnackBar(content: Text(e.message)));
     return e.message;
   } on FirebaseAuthException catch (e) {
-    messenger?.showSnackBar(SnackBar(content: Text(e.message ?? 'Something went wrong.')));
+    messenger?.showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Something went wrong.')));
     return e.message;
   } on FirebaseException catch (e) {
     final message = e.code == 'permission-denied'
@@ -133,7 +180,8 @@ Future<String?> runAction(
     messenger?.showSnackBar(SnackBar(content: Text(message)));
     return message;
   } catch (e) {
-    messenger?.showSnackBar(const SnackBar(content: Text('Something went wrong.')));
+    messenger
+        ?.showSnackBar(const SnackBar(content: Text('Something went wrong.')));
     return e.toString();
   }
 }

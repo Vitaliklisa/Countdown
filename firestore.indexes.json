@@ -42,6 +42,43 @@
       "collectionGroup": "notes",
       "queryScope": "COLLECTION",
       "fields": [{ "fieldPath": "createdAt", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sharedWithCircleIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "deletedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "circles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "memberIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "circle_invitations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "inviteeEmail", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "responses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "recipientId", "order": "ASCENDING" },
+        { "fieldPath": "respondedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "email", "order": "ASCENDING" }]
     }
   ],
   "fieldOverrides": []

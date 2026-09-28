@@ -54,7 +54,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   }
 
   CountdownEvent? _find() {
-    final events = ref.read(eventsProvider).valueOrNull ?? const <CountdownEvent>[];
+    final events =
+        ref.read(eventsProvider).valueOrNull ?? const <CountdownEvent>[];
     for (final event in events) {
       if (event.id == widget.eventId) return event;
     }
@@ -82,7 +83,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
     final now = ref.watch(clockProvider).valueOrNull ?? DateTime.now();
 
     if (eventsAsync.isLoading && event == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+      return const Scaffold(
+          body: Center(child: CircularProgressIndicator(strokeWidth: 2)));
     }
 
     if (event == null) {
@@ -110,8 +112,9 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
 
     final user = ref.watch(currentUserProvider);
     final arrived = !event.at.isAfter(now);
-    final participants = ref.watch(participantsProvider(event.id)).valueOrNull ??
-        event.participants;
+    final participants =
+        ref.watch(participantsProvider(event.id)).valueOrNull ??
+            event.participants;
     final notes = ref.watch(notesProvider(event.id)).valueOrNull ?? event.notes;
     final others = participants.where((p) => p.userId != user?.id).toList();
 
@@ -141,7 +144,9 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
           Row(
             children: [
               Icon(
-                arrived ? Icons.celebration_rounded : Icons.hourglass_bottom_rounded,
+                arrived
+                    ? Icons.celebration_rounded
+                    : Icons.hourglass_bottom_rounded,
                 size: 14,
                 color: arrived ? colors.accent : colors.subtle,
               ),
@@ -176,7 +181,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
           ),
           const SizedBox(height: 24),
           if (arrived)
-            ArrivalCelebration(title: event.title, description: event.description)
+            ArrivalCelebration(
+                title: event.title, description: event.description)
           else
             CountdownFace(target: event.at, now: now),
           const SizedBox(height: 26),
@@ -184,9 +190,11 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () => context.push('/event/${event.id}/edit', extra: event),
+                  onPressed: () =>
+                      context.push('/event/${event.id}/edit', extra: event),
                   icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: Text(event.canEdit(user?.id) ? 'Edit' : 'View details'),
+                  label:
+                      Text(event.canEdit(user?.id) ? 'Edit' : 'View details'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -248,7 +256,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
                   decoration: BoxDecoration(
                     color: colors.surface,
                     borderRadius: BorderRadius.circular(10),
@@ -257,7 +266,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(note.text, style: const TextStyle(fontSize: 13.5, height: 1.4)),
+                      Text(note.text,
+                          style: const TextStyle(fontSize: 13.5, height: 1.4)),
                       const SizedBox(height: 6),
                       Text(
                         formatMomentShort(note.createdAt),

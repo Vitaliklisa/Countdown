@@ -171,7 +171,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
 /// Sugar so widgets read `context.colors.accent` instead of digging through the
 /// theme extension by hand.
 extension AppPaletteX on BuildContext {
-  AppPalette get colors => Theme.of(this).extension<AppPalette>() ?? AppPalette.dark;
+  AppPalette get colors =>
+      Theme.of(this).extension<AppPalette>() ?? AppPalette.dark;
 }
 
 class AppTheme {
@@ -180,7 +181,8 @@ class AppTheme {
   /// System font stack on mobile, with the web build falling back through the
   /// same list the site uses. Display text is tight and slightly condensed.
   static ThemeData build({required Brightness brightness}) {
-    final palette = brightness == Brightness.dark ? AppPalette.dark : AppPalette.light;
+    final palette =
+        brightness == Brightness.dark ? AppPalette.dark : AppPalette.light;
     final scheme = ColorScheme.fromSeed(
       seedColor: palette.accent,
       brightness: brightness,
@@ -210,12 +212,14 @@ class AppTheme {
         centerTitle: false,
       ),
       textTheme: _textTheme(base.textTheme, palette),
-      dividerTheme: DividerThemeData(color: palette.border, thickness: 1, space: 1),
+      dividerTheme:
+          DividerThemeData(color: palette.border, thickness: 1, space: 1),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: palette.surface,
         hintStyle: TextStyle(color: palette.subtle, fontSize: 14),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: _inputBorder(palette.border),
         enabledBorder: _inputBorder(palette.border),
         focusedBorder: _inputBorder(palette.accent, width: 1.5),
@@ -227,7 +231,8 @@ class AppTheme {
           backgroundColor: palette.accent,
           foregroundColor: palette.accentFg,
           minimumSize: const Size.fromHeight(50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
@@ -236,7 +241,8 @@ class AppTheme {
           foregroundColor: palette.fg,
           side: BorderSide(color: palette.borderStrong),
           minimumSize: const Size.fromHeight(50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
         ),
       ),
@@ -264,52 +270,59 @@ class AppTheme {
       progressIndicatorTheme: ProgressIndicatorThemeData(color: palette.accent),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? palette.accentFg : palette.muted,
+          (states) => states.contains(WidgetState.selected)
+              ? palette.accentFg
+              : palette.muted,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? palette.accent : palette.surface2,
+          (states) => states.contains(WidgetState.selected)
+              ? palette.accent
+              : palette.surface2,
         ),
       ),
     );
   }
 
-  static OutlineInputBorder _inputBorder(Color color, {double width = 1}) => OutlineInputBorder(
+  static OutlineInputBorder _inputBorder(Color color, {double width = 1}) =>
+      OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: color, width: width),
       );
 
-  static TextTheme _textTheme(TextTheme base, AppPalette palette) => base
-      .apply(bodyColor: palette.fg, displayColor: palette.fg)
-      .copyWith(
-        // The hero numeral on the countdown tiles — tight tracking, tabular so
-        // digits don't jitter as the seconds tick over.
-        displayLarge: base.displayLarge?.copyWith(
-          fontSize: 44,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -1.2,
-          height: 1,
-          fontFeatures: const [FontFeature.tabularFigures()],
-          color: palette.fg,
-        ),
-        headlineLarge: base.headlineLarge?.copyWith(
-          fontSize: 30,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.6,
-          height: 1.15,
-        ),
-        headlineMedium: base.headlineMedium?.copyWith(
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.4,
-        ),
-        titleMedium: base.titleMedium?.copyWith(fontSize: 16, fontWeight: FontWeight.w600),
-        bodyMedium: base.bodyMedium?.copyWith(fontSize: 14, height: 1.45, color: palette.muted),
-        bodySmall: base.bodySmall?.copyWith(fontSize: 12.5, color: palette.subtle),
-        labelSmall: base.labelSmall?.copyWith(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.4,
-          color: palette.subtle,
-        ),
-      );
+  static TextTheme _textTheme(TextTheme base, AppPalette palette) =>
+      base.apply(bodyColor: palette.fg, displayColor: palette.fg).copyWith(
+            // The hero numeral on the countdown tiles — tight tracking, tabular so
+            // digits don't jitter as the seconds tick over.
+            displayLarge: base.displayLarge?.copyWith(
+              fontSize: 44,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -1.2,
+              height: 1,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              color: palette.fg,
+            ),
+            headlineLarge: base.headlineLarge?.copyWith(
+              fontSize: 30,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.6,
+              height: 1.15,
+            ),
+            headlineMedium: base.headlineMedium?.copyWith(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.4,
+            ),
+            titleMedium: base.titleMedium
+                ?.copyWith(fontSize: 16, fontWeight: FontWeight.w600),
+            bodyMedium: base.bodyMedium
+                ?.copyWith(fontSize: 14, height: 1.45, color: palette.muted),
+            bodySmall:
+                base.bodySmall?.copyWith(fontSize: 12.5, color: palette.subtle),
+            labelSmall: base.labelSmall?.copyWith(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.4,
+              color: palette.subtle,
+            ),
+          );
 }

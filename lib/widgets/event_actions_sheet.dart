@@ -58,7 +58,8 @@ class _EventActionsSheet extends ConsumerWidget {
                     event.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 3),
                   Text(
@@ -145,7 +146,8 @@ class _EventActionsSheet extends ConsumerWidget {
                     messenger.showSnackBar(SnackBar(content: Text(e.message)));
                   } catch (_) {
                     messenger.showSnackBar(
-                      const SnackBar(content: Text('Could not delete. Try again.')),
+                      const SnackBar(
+                          content: Text('Could not delete. Try again.')),
                     );
                   }
                 },

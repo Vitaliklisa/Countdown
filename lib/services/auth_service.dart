@@ -30,7 +30,8 @@ class AppUser {
       );
 
   String get initials {
-    final source = (displayName?.trim().isNotEmpty ?? false) ? displayName! : email;
+    final source =
+        (displayName?.trim().isNotEmpty ?? false) ? displayName! : email;
     if (source.isEmpty) return 'U';
     final parts = source.trim().split(RegExp(r'\s+'));
     if (parts.length >= 2 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
@@ -61,14 +62,16 @@ class AuthFailure implements Exception {
 class AuthService {
   AuthService({FirebaseAuth? auth, GoogleSignIn? googleSignIn})
       : _auth = auth ?? FirebaseAuth.instance,
-        _googleSignIn = googleSignIn ?? GoogleSignIn(scopes: const ['email', 'profile']);
+        _googleSignIn =
+            googleSignIn ?? GoogleSignIn(scopes: const ['email', 'profile']);
 
   final FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
 
   /// Fires on every sign-in/sign-out. `null` means signed out.
-  Stream<AppUser?> authStateChanges() =>
-      _auth.authStateChanges().map((user) => user == null ? null : AppUser.fromFirebase(user));
+  Stream<AppUser?> authStateChanges() => _auth
+      .authStateChanges()
+      .map((user) => user == null ? null : AppUser.fromFirebase(user));
 
   AppUser? get currentUser {
     final user = _auth.currentUser;
@@ -149,7 +152,8 @@ class AuthService {
     } on AuthFailure {
       rethrow;
     } catch (e) {
-      throw AuthFailure('Google sign-in failed. Please try again.', code: e.toString());
+      throw AuthFailure('Google sign-in failed. Please try again.',
+          code: e.toString());
     }
   }
 
@@ -172,7 +176,8 @@ class AuthService {
     final user = _auth.currentUser;
     if (user == null) throw const AuthFailure('No guest session to upgrade.');
     try {
-      final credential = EmailAuthProvider.credential(email: email.trim(), password: password);
+      final credential =
+          EmailAuthProvider.credential(email: email.trim(), password: password);
       final result = await user.linkWithCredential(credential);
       return AppUser.fromFirebase(result.user!);
     } on FirebaseAuthException catch (e) {
@@ -220,9 +225,11 @@ class AuthService {
   AuthFailure _mapException(FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-email':
-        return const AuthFailure('That email address does not look right.', code: 'invalid-email');
+        return const AuthFailure('That email address does not look right.',
+            code: 'invalid-email');
       case 'user-disabled':
-        return const AuthFailure('This account has been disabled.', code: 'user-disabled');
+        return const AuthFailure('This account has been disabled.',
+            code: 'user-disabled');
       case 'user-not-found':
       case 'wrong-password':
       case 'invalid-credential':

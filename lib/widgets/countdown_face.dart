@@ -40,10 +40,22 @@ class CountdownFace extends StatelessWidget {
           crossAxisSpacing: 12,
           childAspectRatio: 1.45,
           children: [
-            _UnitTile(value: remaining.years, label: 'Years', live: liveUnit == _Unit.years),
-            _UnitTile(value: remaining.months, label: 'Months', live: liveUnit == _Unit.months),
-            _UnitTile(value: remaining.days, label: 'Days', live: liveUnit == _Unit.days),
-            _UnitTile(value: remaining.hours, label: 'Hours', live: liveUnit == _Unit.hours),
+            _UnitTile(
+                value: remaining.years,
+                label: 'Years',
+                live: liveUnit == _Unit.years),
+            _UnitTile(
+                value: remaining.months,
+                label: 'Months',
+                live: liveUnit == _Unit.months),
+            _UnitTile(
+                value: remaining.days,
+                label: 'Days',
+                live: liveUnit == _Unit.days),
+            _UnitTile(
+                value: remaining.hours,
+                label: 'Hours',
+                live: liveUnit == _Unit.hours),
           ],
         ),
         const SizedBox(height: 18),
@@ -56,7 +68,8 @@ class CountdownFace extends StatelessWidget {
 enum _Unit { years, months, days, hours }
 
 class _UnitTile extends StatelessWidget {
-  const _UnitTile({required this.value, required this.label, required this.live});
+  const _UnitTile(
+      {required this.value, required this.label, required this.live});
 
   final int value;
   final String label;
@@ -96,8 +109,16 @@ class _UnitTile extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: live
-                      ? [Colors.transparent, colors.accent.withValues(alpha: 0.7), Colors.transparent]
-                      : [Colors.transparent, colors.borderStrong, Colors.transparent],
+                      ? [
+                          Colors.transparent,
+                          colors.accent.withValues(alpha: 0.7),
+                          Colors.transparent
+                        ]
+                      : [
+                          Colors.transparent,
+                          colors.borderStrong,
+                          Colors.transparent
+                        ],
                 ),
               ),
             ),
@@ -164,7 +185,8 @@ class _PulsingDot extends StatefulWidget {
   State<_PulsingDot> createState() => _PulsingDotState();
 }
 
-class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderStateMixin {
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1400),
@@ -202,7 +224,8 @@ class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderState
               Container(
                 width: 6,
                 height: 6,
-                decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+                decoration:
+                    BoxDecoration(color: widget.color, shape: BoxShape.circle),
               ),
             ],
           );

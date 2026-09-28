@@ -63,7 +63,8 @@ class _MissingConfigApp extends StatelessWidget {
                     'The Until project id is baked in, but the web API key and '
                     'app id are not. Run this once from the project root, then '
                     'rebuild:',
-                    style: TextStyle(fontSize: 14, height: 1.5, color: palette.muted),
+                    style: TextStyle(
+                        fontSize: 14, height: 1.5, color: palette.muted),
                   ),
                   const SizedBox(height: 18),
                   Container(
@@ -87,7 +88,8 @@ class _MissingConfigApp extends StatelessWidget {
                   Text(
                     'That writes lib/firebase_options.dart and the native config '
                     'files. Android and iOS already load theirs automatically.',
-                    style: TextStyle(fontSize: 13, height: 1.5, color: palette.subtle),
+                    style: TextStyle(
+                        fontSize: 13, height: 1.5, color: palette.subtle),
                   ),
                 ],
               ),
@@ -125,6 +127,8 @@ List<Override> buildOverrides({
   EventRepository? repository,
 }) =>
     [
-      if (authService != null) authServiceProvider.overrideWithValue(authService),
-      if (repository != null) eventRepositoryProvider.overrideWithValue(repository),
+      if (authService != null)
+        authServiceProvider.overrideWithValue(authService),
+      if (repository != null)
+        eventRepositoryProvider.overrideWithValue(repository),
     ];

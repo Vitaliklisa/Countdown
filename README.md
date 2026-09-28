@@ -19,12 +19,66 @@ stack that ships to both app stores and the browser from one codebase.
   the whole screen and the card says so.
 - **Share a countdown** with other people, by email, with a role:
   `admin` (can invite, edit, delete), `editor` (can edit), `viewer` (read-only).
-- **Invitations** — invite someone who has no account yet and it waits for them;
-  it appears as a banner the first time they sign in with that email.
+- **Circles** — invite someone **once** into a group (family, friends, a team),
+  then share any future countdown with the whole group in a single tap. See
+  below.
+- **Couples** — mark a circle as *us* and it shares automatically: anything one
+  partner creates, the other sees immediately, with no invitation to accept.
+- **Invitations with a real answer** — an invitee gets Accept / Decline, and
+  whoever sent it is told what they chose ("Sam joined 'Trip home'").
 - **Notes** on a shared countdown, so the people counting down together can
   leave each other messages.
 - **Duplicate** a countdown a year on — useful for annual events.
 - **Dark and light**, following the device by default.
+
+---
+
+## Circles and sharing
+
+There are three ways a countdown reaches another person, and they exist because
+re-typing an email for every event is the thing that makes a counting-down app
+annoying to use more than once.
+
+| | How it works | Who has to accept |
+|---|---|---|
+| **Invite to a countdown** | Add one person to one event, by email | The person invited |
+| **Share with a circle** | Anyone in the circle sees the countdown | Nobody — members already opted in |
+| **Couple circle** | Marked *us*; every new countdown is shared automatically | Nobody — that is what partners asked for |
+
+### Inviting someone to a countdown
+
+1. Open a countdown → **Collaborators** → enter their email → pick a role.
+2. If they already have an account, the countdown appears as a pending invite
+   in their app. If they do not, the invitation waits in the `invitations`
+   collection until someone signs up with that address.
+3. They get **Accept** / **Decline**. Either way, a line lands in the inviter's
+   **Notifications** naming them and what they chose.
+
+### Circles
+
+A circle is a standing group. Create one (Family, Tokyo 2027, Us), invite people
+into it once, and afterwards a countdown can be shared with the whole group by
+ticking it in the composer.
+
+- Only the **owner** can invite into a circle.
+- Joining a circle is always the invitee's choice — a circle invitation is never
+  auto-accepted, unlike a couple.
+- Members can leave; the owner can rename.
+
+### Couples
+
+Creating a circle with the **"This is us — a couple"** toggle changes its
+behaviour: any countdown either partner creates is attached to that circle and
+every member gets an accepted `editor` participant row in the same batch. No
+invitation, nothing to accept.
+
+The flow end to end:
+
+1. Alex creates a circle named *Us* with the couple toggle on, and invites Sam
+   by email.
+2. Sam sees **"Become Alex's partner"** in their invitations and accepts.
+3. Alex creates *Anniversary trip*. It is shared with *Us* automatically.
+4. Sam opens the app and the countdown is already there — nothing to accept.
 
 ---
 
@@ -326,19 +380,34 @@ dart run flutter_native_splash:create     # writes Android + iOS splash screens
 ```
 events/{eventId}
   title, description, at, createdBy, createdAt, updatedAt, deletedAt?
+  sharedWithCircleIds[]
   participants/{userId}   email, role, inviteStatus, joinedAt, displayName, photoUrl
   notes/{noteId}          userId, text, createdAt, updatedAt
 
 invitations/{inviteId}    eventId, invitedBy, inviteeEmail, role, status,
                           createdAt, expiresAt, eventTitle
 
+circles/{circleId}        name, ownerId, memberIds[], isCouple, emoji, createdAt
+  members/{userId}        email, displayName, photoUrl, isOwner, joinedAt
+
+circle_invitations/{id}   circleId, invitedBy, inviteeEmail, circleName,
+                          isCouple, status, createdAt, expiresAt
+
+responses/{id}            recipientId, eventId, eventTitle, responderEmail,
+                          responderName, accepted, respondedAt, read
+
 users/{userId}            email, displayName
 ```
 
-**Visibility.** A user sees an event when they created it or hold an accepted
-participant row. This is enforced in `firestore.rules`; the client mirrors the
-same rule in `CountdownEvent.canEdit` / `canManage` so buttons hide instead of
-failing.
+**Visibility.** A user sees an event when they created it, hold an accepted
+participant row, **or** belong to a circle in its `sharedWithCircleIds`.
+Enforced in `firestore.rules`; the client mirrors the rule in
+`CountdownEvent.canEdit` / `canManage` so buttons hide instead of failing.
+
+**Why `memberIds` is duplicated onto the circle.** Security rules have no
+subcollection query, so membership is checked against a plain array on the
+circle document — one `get()` instead of a scan. The array and the `members`
+subcollection are written in the same batch, so they cannot drift.
 
 **Soft delete.** Deleting stamps `deletedAt` rather than removing the document,
 so an accidental delete is recoverable and participant/note history is not
@@ -358,6 +427,7 @@ lib/
   core/
     countdown.dart      calendar-aware countdown maths + formatting
     models.dart         CountdownEvent, Participant, EventNote, Invitation
+    circles.dart        Circle, CircleMember, CircleInvitation, InvitationResponse
     theme.dart          design tokens (dark + light)
   services/
     auth_service.dart   Firebase Auth: Google, email/password, anonymous, linking
@@ -365,18 +435,23 @@ lib/
   providers/
     app_providers.dart  Riverpod wiring: auth, events, clock, theme
   screens/
-    home_screen.dart        hero countdown + list
-    event_editor_screen.dart  create/edit, invites, live preview
+    home_screen.dart          hero countdown + list + inbox badges
+    event_editor_screen.dart  create/edit, invites, circle picker, live preview
     event_detail_screen.dart  full view, notes, sharing
+    invitations_screen.dart   invitations awaiting your answer
+    circles_screen.dart       create circles, invite members
+    notifications_screen.dart answers to invitations you sent
     login_screen.dart         sign in / register / guest
     settings_screen.dart      account + appearance
   widgets/
     countdown_face.dart       the four tiles + ticking line
     arrival_celebration.dart  confetti burst
     brand_kit.dart            wordmark, avatar, status chip
-    invitations_banner.dart   pending invites
+    invitations_inbox.dart    countdown + circle invitations, accept/decline
     event_actions_sheet.dart  long-press actions
+    share_event.dart          text sharing
   main.dart             Firebase init + app root
+  firebase_config.dart  project id + web options
   router.dart           go_router routes
 ```
 

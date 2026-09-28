@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import 'core/models.dart';
 import 'providers/app_providers.dart';
+import 'screens/circles_screen.dart';
 import 'screens/event_detail_screen.dart';
 import 'screens/event_editor_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/invitations_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/settings_screen.dart';
 
 /// Route names, kept in one place so navigation calls never use raw strings.
@@ -19,6 +22,9 @@ class Routes {
   static const settings = '/settings';
   static const newEvent = '/event/new';
   static const eventDetail = '/event';
+  static const invitations = '/invitations';
+  static const circles = '/circles';
+  static const notifications = '/notifications';
 }
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -56,10 +62,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SettingsScreen(),
       ),
       GoRoute(
+        path: Routes.invitations,
+        name: 'invitations',
+        builder: (context, state) => const InvitationsScreen(),
+      ),
+      GoRoute(
+        path: Routes.circles,
+        name: 'circles',
+        builder: (context, state) => const CirclesScreen(),
+      ),
+      GoRoute(
+        path: Routes.notifications,
+        name: 'notifications',
+        builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
         path: Routes.newEvent,
         name: 'newEvent',
         builder: (context, state) => EventEditorScreen(
-          event: state.extra is CountdownEvent ? state.extra as CountdownEvent : null,
+          event: state.extra is CountdownEvent
+              ? state.extra as CountdownEvent
+              : null,
         ),
       ),
       // NOTE: the more specific `/:id/edit` route must be declared BEFORE
@@ -70,7 +93,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '${Routes.eventDetail}/:id/edit',
         name: 'editEvent',
         builder: (context, state) => EventEditorScreen(
-          event: state.extra is CountdownEvent ? state.extra as CountdownEvent : null,
+          event: state.extra is CountdownEvent
+              ? state.extra as CountdownEvent
+              : null,
         ),
       ),
       GoRoute(

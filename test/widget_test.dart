@@ -51,7 +51,8 @@ void main() {
     expect(find.textContaining('Pick a future moment'), findsOneWidget);
   });
 
-  testWidgets('theme exposes the palette through the context extension', (tester) async {
+  testWidgets('theme exposes the palette through the context extension',
+      (tester) async {
     late AppPalette palette;
     await tester.pumpWidget(
       MaterialApp(
@@ -72,10 +73,10 @@ void main() {
   });
 
   testWidgets('light and dark palettes stay distinct', (tester) async {
-    final dark = AppTheme.build(brightness: Brightness.dark)
-        .extension<AppPalette>()!;
-    final light = AppTheme.build(brightness: Brightness.light)
-        .extension<AppPalette>()!;
+    final dark =
+        AppTheme.build(brightness: Brightness.dark).extension<AppPalette>()!;
+    final light =
+        AppTheme.build(brightness: Brightness.light).extension<AppPalette>()!;
 
     expect(dark.canvas, isNot(light.canvas));
     expect(dark.accent, isNot(light.accent));
@@ -103,7 +104,8 @@ class _FirstRunHost extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Name a day.', style: Theme.of(context).textTheme.headlineLarge),
+            Text('Name a day.',
+                style: Theme.of(context).textTheme.headlineLarge),
             Text(
               'Pick a future moment — a wedding, a launch, a trip home.',
               style: TextStyle(color: colors.muted),

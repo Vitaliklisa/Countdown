@@ -51,7 +51,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               displayName: _name.text,
             );
           } else {
-            await auth.signInWithEmail(email: _email.text, password: _password.text);
+            await auth.signInWithEmail(
+                email: _email.text, password: _password.text);
           }
         },
         successMessage: _creating ? 'Account created.' : 'Welcome back.',
@@ -91,7 +92,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final email = _email.text.trim();
     if (email.isEmpty || !email.contains('@')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your email first, then tap “Forgot password”.')),
+        const SnackBar(
+            content:
+                Text('Enter your email first, then tap “Forgot password”.')),
       );
       return;
     }
@@ -134,7 +137,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       _creating
                           ? 'Your countdowns sync to every device you sign in on.'
                           : 'Count down to the moments that matter — on phone, tablet and web.',
-                      style: TextStyle(fontSize: 14, height: 1.5, color: colors.muted),
+                      style: TextStyle(
+                          fontSize: 14, height: 1.5, color: colors.muted),
                     ),
                     const SizedBox(height: 28),
                     if (_creating) ...[
@@ -177,7 +181,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       suffix: IconButton(
                         onPressed: () => setState(() => _obscure = !_obscure),
                         icon: Icon(
-                          _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                          _obscure
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
                           size: 19,
                           color: colors.subtle,
                         ),
@@ -195,7 +201,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: _busy ? null : _forgotPassword,
-                          child: const Text('Forgot password?', style: TextStyle(fontSize: 13)),
+                          child: const Text('Forgot password?',
+                              style: TextStyle(fontSize: 13)),
                         ),
                       )
                     else
@@ -222,7 +229,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Text(
                             'OR',
-                            style: TextStyle(fontSize: 11, letterSpacing: 1.4, color: colors.subtle),
+                            style: TextStyle(
+                                fontSize: 11,
+                                letterSpacing: 1.4,
+                                color: colors.subtle),
                           ),
                         ),
                         Expanded(child: Divider(color: colors.border)),
@@ -340,7 +350,8 @@ class _ButtonSpinner extends StatelessWidget {
     return SizedBox(
       width: 18,
       height: 18,
-      child: CircularProgressIndicator(strokeWidth: 2, color: context.colors.accentFg),
+      child: CircularProgressIndicator(
+          strokeWidth: 2, color: context.colors.accentFg),
     );
   }
 }

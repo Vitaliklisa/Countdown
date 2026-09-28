@@ -17,7 +17,8 @@ class BrandMark extends StatefulWidget {
   State<BrandMark> createState() => _BrandMarkState();
 }
 
-class _BrandMarkState extends State<BrandMark> with SingleTickerProviderStateMixin {
+class _BrandMarkState extends State<BrandMark>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _sweep = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1200),
@@ -98,10 +99,13 @@ class _ClockPainter extends CustomPainter {
       ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
     // A full sweep reads as a second hand; easing makes it land, not stop dead.
-    final angle = -math.pi / 2 + Curves.easeOutCubic.transform(handProgress) * 2 * math.pi;
+    final angle = -math.pi / 2 +
+        Curves.easeOutCubic.transform(handProgress) * 2 * math.pi;
     canvas.drawLine(
       center,
-      center + Offset(radius * 0.72 * math.cos(angle), radius * 0.72 * math.sin(angle)),
+      center +
+          Offset(
+              radius * 0.72 * math.cos(angle), radius * 0.72 * math.sin(angle)),
       hand,
     );
   }
@@ -144,7 +148,8 @@ class StatusChip extends StatelessWidget {
 
 /// Round avatar with initials falling back to the account's first letters.
 class UserAvatar extends StatelessWidget {
-  const UserAvatar({super.key, required this.initials, this.photoUrl, this.size = 32});
+  const UserAvatar(
+      {super.key, required this.initials, this.photoUrl, this.size = 32});
 
   final String initials;
   final String? photoUrl;
@@ -194,7 +199,9 @@ class RemainingSummary extends StatelessWidget {
     final colors = context.colors;
     final remaining = remainingUntil(target, now);
     return Text(
-      remaining.isPast ? 'It has arrived.' : '${describeRemaining(remaining)} to go',
+      remaining.isPast
+          ? 'It has arrived.'
+          : '${describeRemaining(remaining)} to go',
       style: TextStyle(fontSize: 13, color: colors.muted),
     );
   }

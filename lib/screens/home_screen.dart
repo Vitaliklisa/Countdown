@@ -12,7 +12,9 @@ import '../widgets/arrival_celebration.dart';
 import '../widgets/brand_kit.dart';
 import '../widgets/countdown_face.dart';
 import '../widgets/event_actions_sheet.dart';
-import '../widgets/invitations_banner.dart';/// The countdown home: one hero countdown, then everything else below it.
+import '../widgets/invitations_inbox.dart';
+
+/// The countdown home: one hero countdown, then everything else below it.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -45,7 +47,8 @@ class HomeScreen extends ConsumerWidget {
                     ? _EmptyHome(hasError: hasError, error: eventsAsync.error)
                     : _HeroHome(
                         featured: featured,
-                        others: events.where((e) => e.id != featured.id).toList(),
+                        others:
+                            events.where((e) => e.id != featured.id).toList(),
                         now: now,
                       ),
               ),
@@ -94,7 +97,7 @@ class _EmptyHome extends ConsumerWidget {
       children: [
         const _TopBar(),
         const SizedBox(height: 12),
-        const InvitationsBanner(),
+        const InvitationsInbox(),
         const SizedBox(height: 40),
         Container(
           width: 56,
@@ -103,7 +106,8 @@ class _EmptyHome extends ConsumerWidget {
             color: colors.surface,
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Icon(Icons.hourglass_empty_rounded, size: 26, color: colors.accent),
+          child: Icon(Icons.hourglass_empty_rounded,
+              size: 26, color: colors.accent),
         ),
         const SizedBox(height: 22),
         Text('Name a day.', style: Theme.of(context).textTheme.headlineLarge),
@@ -154,7 +158,8 @@ class _ErrorCard extends StatelessWidget {
           Icon(Icons.cloud_off_rounded, size: 18, color: colors.danger),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(message, style: TextStyle(fontSize: 13, color: colors.muted)),
+            child: Text(message,
+                style: TextStyle(fontSize: 13, color: colors.muted)),
           ),
         ],
       ),
@@ -184,7 +189,8 @@ class _GuestCard extends StatelessWidget {
             children: [
               Icon(Icons.sync_rounded, size: 18, color: colors.accent),
               const SizedBox(width: 10),
-              const Text('Keep them everywhere', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text('Keep them everywhere',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 8),
@@ -203,7 +209,8 @@ class _GuestCard extends StatelessWidget {
 
 /// The main state: a hero countdown plus the rest of the list.
 class _HeroHome extends ConsumerWidget {
-  const _HeroHome({required this.featured, required this.others, required this.now});
+  const _HeroHome(
+      {required this.featured, required this.others, required this.now});
 
   final CountdownEvent featured;
   final List<CountdownEvent> others;
@@ -245,12 +252,14 @@ class _HeroHome extends ConsumerWidget {
           children: [
             const _TopBar(),
             const SizedBox(height: 12),
-            const InvitationsBanner(),
+            const InvitationsInbox(),
             const SizedBox(height: 8),
             Row(
               children: [
                 Icon(
-                  arrived ? Icons.celebration_rounded : Icons.hourglass_bottom_rounded,
+                  arrived
+                      ? Icons.celebration_rounded
+                      : Icons.hourglass_bottom_rounded,
                   size: 14,
                   color: arrived ? colors.accent : colors.subtle,
                 ),
@@ -264,12 +273,14 @@ class _HeroHome extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text(featured.title, style: Theme.of(context).textTheme.headlineLarge),
+            Text(featured.title,
+                style: Theme.of(context).textTheme.headlineLarge),
             if (featured.description.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
                 featured.description,
-                style: TextStyle(fontSize: 14, height: 1.45, color: colors.muted),
+                style:
+                    TextStyle(fontSize: 14, height: 1.45, color: colors.muted),
               ),
             ],
             const SizedBox(height: 10),
@@ -300,7 +311,9 @@ class _HeroHome extends ConsumerWidget {
                       context,
                       ref,
                       event: featured,
-                      onDeleted: () => ref.read(selectedEventIdProvider.notifier).state = null,
+                      onDeleted: () => ref
+                          .read(selectedEventIdProvider.notifier)
+                          .state = null,
                     ),
                     icon: const Icon(Icons.more_horiz_rounded, size: 18),
                     label: const Text('Options'),
@@ -309,7 +322,8 @@ class _HeroHome extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => context.push('${Routes.eventDetail}/${featured.id}'),
+                    onPressed: () =>
+                        context.push('${Routes.eventDetail}/${featured.id}'),
                     icon: const Icon(Icons.tune_rounded, size: 18),
                     label: const Text('Open'),
                   ),
@@ -343,7 +357,8 @@ class _HeroHome extends ConsumerWidget {
             ),
             decoration: BoxDecoration(
               color: colors.canvas.withValues(alpha: 0.94),
-              border: Border(top: BorderSide(color: colors.border.withValues(alpha: 0.6))),
+              border: Border(
+                  top: BorderSide(color: colors.border.withValues(alpha: 0.6))),
             ),
             child: FilledButton.icon(
               onPressed: () => context.push(Routes.newEvent),
@@ -395,7 +410,8 @@ class _EventRow extends ConsumerWidget {
                       event.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -419,13 +435,16 @@ class _EventRow extends ConsumerWidget {
   }
 }
 
-/// The persistent header: wordmark on the left, account on the right.
+/// The persistent header: wordmark on the left, account and inboxes on the
+/// right.
 class _TopBar extends ConsumerWidget {
   const _TopBar();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
+    final pendingInvites = ref.watch(pendingInviteCountProvider);
+    final unreadResponses = ref.watch(unreadResponseCountProvider);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -433,6 +452,25 @@ class _TopBar extends ConsumerWidget {
         const BrandMark(),
         Row(
           children: [
+            if (user != null) ...[
+              _BadgedIconButton(
+                tooltip: 'Circles',
+                icon: Icons.groups_outlined,
+                onPressed: () => context.push(Routes.circles),
+              ),
+              _BadgedIconButton(
+                tooltip: 'Invitations',
+                icon: Icons.mail_outline_rounded,
+                count: pendingInvites,
+                onPressed: () => context.push(Routes.invitations),
+              ),
+              _BadgedIconButton(
+                tooltip: 'Notifications',
+                icon: Icons.notifications_none_rounded,
+                count: unreadResponses,
+                onPressed: () => context.push(Routes.notifications),
+              ),
+            ],
             IconButton(
               tooltip: 'Settings',
               onPressed: () => context.push(Routes.settings),
@@ -443,7 +481,8 @@ class _TopBar extends ConsumerWidget {
                 padding: const EdgeInsets.only(left: 2),
                 child: GestureDetector(
                   onTap: () => context.push(Routes.settings),
-                  child: UserAvatar(initials: user.initials, photoUrl: user.photoUrl),
+                  child: UserAvatar(
+                      initials: user.initials, photoUrl: user.photoUrl),
                 ),
               )
             else
@@ -458,3 +497,58 @@ class _TopBar extends ConsumerWidget {
   }
 }
 
+/// An icon button with an optional count badge.
+///
+/// The badge is how you notice an invitation arrived without opening anything —
+/// the number only appears when it is non-zero, so the bar stays quiet when
+/// there is nothing waiting.
+class _BadgedIconButton extends StatelessWidget {
+  const _BadgedIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    this.count = 0,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: Icon(icon, size: 20),
+        ),
+        if (count > 0)
+          Positioned(
+            right: 6,
+            top: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              constraints: const BoxConstraints(minWidth: 16),
+              decoration: BoxDecoration(
+                color: colors.accent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                count > 9 ? '9+' : '$count',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: colors.accentFg,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}

@@ -16,7 +16,8 @@ Widget _host(Widget child) {
 
 void main() {
   group('CountdownFace', () {
-    testWidgets('renders the four unit tiles with padded values', (tester) async {
+    testWidgets('renders the four unit tiles with padded values',
+        (tester) async {
       final now = DateTime(2026, 1, 15, 10, 0);
       final target = DateTime(2028, 4, 20, 14, 30);
 
@@ -55,7 +56,8 @@ void main() {
   group('ArrivalCelebration', () {
     testWidgets('announces the day and names the countdown', (tester) async {
       await tester.pumpWidget(
-        _host(const ArrivalCelebration(title: 'Wedding day', description: 'Finally')),
+        _host(const ArrivalCelebration(
+            title: 'Wedding day', description: 'Finally')),
       );
       // Let the post-frame confetti callback and the ring animation start.
       await tester.pump();
@@ -69,7 +71,8 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     });
 
-    testWidgets('falls back to its own closing line without a description', (tester) async {
+    testWidgets('falls back to its own closing line without a description',
+        (tester) async {
       await tester.pumpWidget(_host(const ArrivalCelebration(title: 'Launch')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));

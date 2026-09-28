@@ -52,8 +52,11 @@ class SettingsScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          user.displayName?.isNotEmpty == true ? user.displayName! : 'Until user',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                          user.displayName?.isNotEmpty == true
+                              ? user.displayName!
+                              : 'Until user',
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 3),
                         Text(
@@ -66,7 +69,8 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: colors.surface2,
                       borderRadius: BorderRadius.circular(999),
@@ -98,7 +102,8 @@ class SettingsScreen extends ConsumerWidget {
                   Text(
                     'Sign in to sync your countdowns across every device and share '
                     'them with other people.',
-                    style: TextStyle(fontSize: 13, height: 1.45, color: colors.muted),
+                    style: TextStyle(
+                        fontSize: 13, height: 1.45, color: colors.muted),
                   ),
                   const SizedBox(height: 14),
                   FilledButton(
@@ -211,7 +216,8 @@ class _ThemeSelector extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _InfoRow(
+      {required this.icon, required this.label, required this.value});
 
   final IconData icon;
   final String label;
