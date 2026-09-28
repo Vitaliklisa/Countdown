@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// Until does not store user uploads today — countdowns are text and dates only.
+// This file exists so `firebase deploy` has a valid target and so the moment
+// avatars or cover images are added, the default is deny rather than open.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Nothing is publicly readable or writable.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

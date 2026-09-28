@@ -1,0 +1,210 @@
+rules_version = '2';
+
+// Until — Firestore security rules.
+//
+// These are the authority: the Flutter client mirrors them so it can fail fast
+// with a readable message, but nothing here trusts the client. Deploy with:
+//
+//   firebase deploy --only firestore:rules
+//
+// Shape:
+//   events/{eventId}
+//     ...fields..., deletedAt?
+//     participants/{userId}   email, role, inviteStatus, joinedAt
+//     notes/{noteId}          userId, text, createdAt, updatedAt
+//   invitations/{inviteId}    eventId, invitedBy, inviteeEmail, role, status,
+//                             createdAt, expiresAt, eventTitle
+//   users/{userId}            email, displayName  (email lookup for invites)
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // The caller's email, lowercased. Firebase always stores it lowercased,
+    // but normalising here keeps the invitation match exact.
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isParticipant(eventId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/events/$(eventId)/participants/$(uid()));
+    }
+
+    function participantRole(eventId) {
+      return get(/databases/$(database)/documents/events/$(eventId)/participants/$(uid())).data.role;
+    }
+
+    // Creator OR accepted participant — the same visibility rule the web app
+    // expresses as `buildEventVisibilityWhereClause`.
+    function canRead(eventId, data) {
+      return signedIn()
+        && (
+          data.createdBy == uid()
+          || (
+            isParticipant(eventId)
+            && get(/databases/$(database)/documents/events/$(eventId)/participants/$(uid())).data.inviteStatus == 'accepted'
+          )
+        );
+    }
+
+    function isAdmin(eventId) {
+      return signedIn() && isParticipant(eventId) && participantRole(eventId) == 'admin';
+    }
+
+    function isEditor(eventId) {
+      return signedIn()
+        && isParticipant(eventId)
+        && participantRole(eventId) in ['admin', 'editor'];
+    }
+
+    function isOwner(eventId, data) {
+      return signedIn() && data.createdBy == uid();
+    }
+
+    // Only the fields the editor is allowed to touch may change.
+    function onlyEventFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['title', 'description', 'at', 'updatedAt', 'deletedAt']);
+    }
+
+    function validEventPayload() {
+      return request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 80
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 280
+        && request.resource.data.at is timestamp
+        && request.resource.data.createdBy == uid();
+    }
+
+    // ---------- users ----------
+    //
+    // A tiny public profile per account. It exists so an inviter can turn an
+    // email address into a uid when adding someone straight to a countdown.
+    // Only the email and display name are readable, and only to signed-in
+    // users — never the whole auth record.
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && userId == uid();
+      allow delete: if false;
+    }
+
+    // ---------- events ----------
+    match /events/{eventId} {
+      allow read: if canRead(eventId, resource.data);
+
+      // Creating is unrestricted for a signed-in user, provided they name
+      // themselves as the creator.
+      allow create: if signedIn() && validEventPayload();
+
+      allow update: if (isOwner(eventId, resource.data) || isEditor(eventId))
+        && onlyEventFieldsChanged();
+
+      // Soft delete only: a hard delete would orphan participants and notes.
+      allow delete: if false;
+
+      // ---------- participants ----------
+      match /participants/{userId} {
+        // Participants are visible to anyone who can see the event.
+        allow read: if signedIn()
+          && (isParticipant(eventId) || isOwner(eventId, get(/databases/$(database)/documents/events/$(eventId)).data));
+
+        // The creator seeds their own admin row as part of creating the event.
+        // Everyone else is added by an admin, or by accepting an invitation.
+        allow create: if signedIn()
+          && (
+            userId == uid()
+            || isAdmin(eventId)
+            || isOwner(eventId, get(/databases/$(database)/documents/events/$(eventId)).data)
+          );
+
+        // An invitee may flip their OWN row from pending to accepted — that is
+        // what accepting an invitation does — but may not change their role.
+        allow update: if signedIn()
+          && (
+            isAdmin(eventId)
+            || isOwner(eventId, get(/databases/$(database)/documents/events/$(eventId)).data)
+            || (
+              userId == uid()
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inviteStatus'])
+              && request.resource.data.inviteStatus == 'accepted'
+            )
+          );
+
+        allow delete: if signedIn()
+          && (
+            isAdmin(eventId)
+            || isOwner(eventId, get(/databases/$(database)/documents/events/$(eventId)).data)
+          );
+      }
+
+      // ---------- notes ----------
+      match /notes/{noteId} {
+        allow read: if signedIn()
+          && (isParticipant(eventId) || isOwner(eventId, get(/databases/$(database)/documents/events/$(eventId)).data));
+
+        allow create: if signedIn()
+          && request.resource.data.userId == uid()
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && (isParticipant(eventId) || isOwner(eventId, get(/databases/$(database)/documents/events/$(eventId)).data));
+
+        // You may edit or remove your own note. Admins may remove any note.
+        allow update, delete: if signedIn()
+          && (
+            resource.data.userId == uid()
+            || isAdmin(eventId)
+            || isOwner(eventId, get(/databases/$(database)/documents/events/$(eventId)).data)
+          );
+      }
+    }
+
+    // ---------- invitations ----------
+    match /invitations/{inviteId} {
+      // An invitation is readable by the person who sent it and the person it
+      // is addressed to — nobody else.
+      allow read: if signedIn()
+        && (resource.data.invitedBy == uid() || resource.data.inviteeEmail == myEmail());
+
+      allow create: if signedIn()
+        && request.resource.data.invitedBy == uid()
+        && request.resource.data.inviteeEmail is string
+        && request.resource.data.inviteeEmail == request.resource.data.inviteeEmail.lower()
+        && request.resource.data.status == 'pending'
+        // Only an admin of the target event may invite to it.
+        && isAdmin(request.resource.data.eventId);
+
+      // The invitee may accept or decline. The sender may cancel.
+      allow update: if signedIn()
+        && (
+          (
+            resource.data.inviteeEmail == myEmail()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+            && request.resource.data.status in ['accepted', 'rejected']
+          )
+          || (
+            resource.data.invitedBy == uid()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          )
+        );
+
+      allow delete: if signedIn() && resource.data.invitedBy == uid();
+    }
+
+    // Everything not matched above is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

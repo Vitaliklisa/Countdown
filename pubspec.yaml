@@ -1,0 +1,48 @@
+name: until
+description: "Until — count down to the moments that matter. Flutter + Firebase, for Android, iOS and web."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase — the whole free-tier backend: auth + shared data + analytics.
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  google_sign_in: ^6.2.1
+
+  # State + routing.
+  flutter_riverpod: ^2.5.1
+  go_router: ^14.2.7
+
+  # Date maths and presentation helpers that mirror the web app's `date-fns` layer.
+  intl: ^0.19.0
+  uuid: ^4.5.1
+  shared_preferences: ^2.3.2
+  share_plus: ^10.0.2
+  # Confetti for the arrival celebration (drop-in replacement for the CSS burst).
+  confetti: ^0.7.0
+  flutter_local_notifications: ^17.2.4
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  fake_cloud_firestore: ^3.0.3
+  mocktail: ^1.0.4
+  # Icon and splash generation — run via scripts/generate-flutter-icons.mjs.
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
