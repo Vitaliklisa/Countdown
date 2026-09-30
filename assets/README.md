@@ -1,7 +1,7 @@
 # Assets
 
-This folder is intentionally near-empty: Until draws everything it needs from
-code — the clock wordmark, the countdown tiles, the confetti and the Google
+This folder is intentionally near-empty: Data Dawn draws everything it needs
+from code — the clock wordmark, the countdown tiles, the confetti and the Google
 glyph are all `CustomPainter`s and Material icons, so there are no raster
 assets to ship and nothing to keep in sync across screen densities.
 

@@ -18,7 +18,11 @@ Future<void> shareEvent(BuildContext context, CountdownEvent event) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
 
   try {
-    await Share.share(text, subject: 'Countdown: ${event.title}');
+    // share_plus 13 replaced the static `Share.share` with an instance API;
+    // `SharePlus.instance.share` is the same call through the new entry point.
+    await SharePlus.instance.share(
+      ShareParams(text: text, subject: 'Countdown: ${event.title}'),
+    );
   } catch (_) {
     // If the platform share sheet is unavailable (some desktop browsers, or a
     // device with no share target), show the text so it can still be copied.

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:until/core/theme.dart';
-import 'package:until/widgets/arrival_celebration.dart';
-import 'package:until/widgets/countdown_face.dart';
+import 'package:datedawn/core/theme.dart';
+import 'package:datedawn/widgets/arrival_celebration.dart';
+import 'package:datedawn/widgets/countdown_face.dart';
 
 /// Wraps a widget in the app's real theme so the palette extension resolves —
 /// without it every `context.colors` lookup falls back and the test would not

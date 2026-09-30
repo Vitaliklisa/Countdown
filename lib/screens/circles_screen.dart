@@ -135,7 +135,7 @@ class _CircleCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final user = ref.watch(currentUserProvider);
-    final members = ref.watch(circleMembersProvider(circle.id)).valueOrNull ??
+    final members = ref.watch(circleMembersProvider(circle.id)).value ??
         const <CircleMember>[];
     final isOwner = circle.isOwner(user?.id);
 

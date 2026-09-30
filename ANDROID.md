@@ -1,127 +1,175 @@
-# Until — Android app (Capacitor)
+# Data Dawn — Android app
 
-Wraps the TanStack Start web app in a native Android shell, producing a real
-installable `.apk`, with **no rewrite** of the app code. See **[DEPLOY.md](./DEPLOY.md)**
-for the cloud / Neon / Vercel side.
+Data Dawn is the Flutter app: a countdown app for Android, iOS and web, backed by Firebase (auth + Firestore). See **[docs/PUBLISHING_CHECKLIST.md](./docs/PUBLISHING_CHECKLIST.md)** for the store submission path.
 
-## Architecture (read this first)
+> **Naming.** The app is **Data Dawn**; the Firebase project and package id are **`datedawn`** / **`com.datedawn.app`**. `com.datedawn.app` is permanent once the first Play bundle is uploaded — see the publishing checklist before you build an upload.
 
-The app is **server-rendered**: auth, the database, and every `createServerFn`
-handler run on a Node server. Those cannot be baked into an APK. So the native
-shell loads the running app over the network from `server.url`.
+## Architecture
 
-Consequences:
+Data Dawn is a **pure Flutter** app: the UI, countdown maths, and every Firebase
+call run on the device. There is no server component and no web app to load, so
+the APK/AAB is fully self-contained and works offline except for sign-in and
+Firestore sync.
 
-- **Something must serve the app**: either the deployed public URL (normal use)
-  or your PC's dev server (local testing only).
-- `webDir` (`dist/client`) is only an offline fallback shell.
-- **Which URL the APK points at decides whether the phone needs your PC.** Point
-  it at the deployed `https://` URL and no PC is involved at all.
+```
+lib/
+  main.dart                 app entry, Firebase bootstrap
+  firebase_config.dart      project id + web options
+  router.dart               go_router table
+  core/                     models, countdown maths, theme
+  providers/                Riverpod providers (auth, events, circles, clock)
+  screens/                  one file per screen
+  services/                 auth + Firestore repositories
+  widgets/                  shared UI
+```
 
 ## Two modes
-| | Local test | Real / shareable |
+| | Debug | Release |
 |---|---|---|
-| APK points at | `http://<pc-lan-ip>:8080` | `https://your-app.vercel.app` |
-| Needs the PC on? | **Yes** | **No** |
-| Data backend | PGLite (in-memory, resets on restart) | Neon Postgres (persistent) |
-| Shared across devices? | No — one machine | Yes |
-| Build with | `npm run android:apk` (default URL) | `$env:CAP_SERVER_URL="https://…"; npm run android:apk` |
+| Command | `flutter run` / `flutter build apk --debug` | `flutter build appbundle --release` |
+| Signing | Debug key | Your upload key (`android/key.properties`) |
+| Backend | The Firebase project in `lib/firebase_config.dart` | Same |
+| Use for | Development, testing on a device | Google Play upload |
 
 ## One-time setup (already done in this repo)
 
-- Android Studio + Android SDK installed
-- `@capacitor/core`, `@capacitor/cli`, `@capacitor/android` (v8) installed
-- `@capacitor/push-notifications` installed
-- `android/` native project generated
-- `android/local.properties` points Gradle at the SDK
-- App icon + splash generated from code (see below)
+- Flutter 3.47+ / Dart 3.13+ installed
+- Android Studio + Android SDK with **NDK 28.2.13676358** installed
+- `flutterfire configure --project=datedawn` run once, to generate
+  `lib/firebase_options.dart`, `android/app/google-services.json` and
+  `ios/Runner/GoogleService-Info.plist`
 
-## Build the APK
-```powershell
-npm run android:apk
+## The NDK version must match the plugins
+
+The Firebase, `share_plus`, `google_sign_in_android`, `jni` and
+`flutter_local_notifications` plugins all require **NDK 28.2.13676358** or
+higher. `android/app/build.gradle.kts` pins it explicitly:
+
+```kotlin
+ndkVersion = "28.2.13676358"
 ```
 
-Output:
+If a build ever reports `Your project is configured with Android NDK X, but the
+following plugin(s) depend on a different Android NDK version`, do **not** lower
+this value. NDK releases are backward compatible, so the fix is always to raise
+it to the highest version any plugin asks for, then sync:
 
-```
-android/app/build/outputs/apk/debug/app-debug.apk
-```
+1. In Android Studio: **SDK Manager → SDK Tools → NDK (Side by side)** → tick
+   the required version.
+2. Re-run the build.
 
-The script sets `JAVA_HOME` and `ANDROID_HOME` for you and, from
-`CAP_SERVER_URL`, configures `server.url` + the cleartext flag. **JDK note:** it
-uses Android Studio's bundled JDK 25, because Capacitor 8 compiles against Java
-21 and the standalone Adoptium JDK 17 is too old. Gradle is pinned to 9.1.0, the
-first version that *runs* on JDK 25. Edit the paths at the top of
-`scripts/build-apk.mjs` if your installs differ.
+`android/local.properties` points Gradle at the SDK, and the NDK is resolved
+from there.
 
-## Run the dev server (local mode only)
-
-```powershell
-npm run dev:detached
-```
-
-Starts Vite detached on `0.0.0.0:8080` (logs in `dev-server.log`). Detached means
-it survives after the terminal command returns.
-
-## Switch which server the APK points at
-Set one env var, then rebuild:
+## Build
 
 ```powershell
-# real, no-PC-needed build
-$env:CAP_SERVER_URL = "https://your-app.vercel.app"
-npm run android:apk
+# debug APK, for installing directly on a device
+flutter build apk --debug
+
+# the artifact you upload to Play
+flutter build appbundle --release
 ```
 
-`cleartext` / `usesCleartextTraffic` are switched automatically: on for a plain
-`http://` URL, stripped for `https://`.
+Outputs:
 
-## Install on the Pixel 8 Pro
+```
+build/app/outputs/flutter-apk/app-debug.apk          (debug)
+build/app/outputs/bundle/release/app-release.aab     (Play upload)
+```
 
-1. Copy `android/app/build/outputs/apk/debug/app-debug.apk` to the phone
-   (USB, Google Drive, or `adb install`).
-2. Tap the file → allow "Install unknown apps" for your file manager/browser.
-3. Open **Until** from the home screen.
+For an emulator, simpler still: `flutter run`. For a release build on a real
+device: `flutter run --release`.
+
+## Run the web build locally
+
+```powershell
+flutter run -d chrome \
+  --dart-define=FIREBASE_API_KEY=... \
+  --dart-define=FIREBASE_APP_ID=... \
+  --dart-define=FIREBASE_MESSAGING_SENDER_ID=...
+```
+
+Web is the one platform with no native config file, so its keys arrive as
+`--dart-define` values (see `lib/firebase_config.dart`). Without them the app
+renders a page that says exactly which command to run instead of failing with
+Firebase's opaque "API key not valid".
+
+`flutterfire configure --project=datedawn` fills these in permanently by writing
+`lib/firebase_options.dart`.
+
+## Install on a device
+
+1. `flutter build apk --debug`
+2. Copy `build/app/outputs/flutter-apk/app-debug.apk` to the phone (USB, cloud
+   storage, or `adb install`).
+3. Tap the file → allow "Install unknown apps" for your file manager/browser.
+4. Open **Data Dawn** from the home screen.
 
 Or, phone plugged in over USB with USB debugging on:
 
 ```powershell
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r "android\app\build\outputs\apk\debug\app-debug.apk"
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r "build\app\outputs\flutter-apk\app-debug.apk"
 ```
 
 ## App icon and splash
-Generated from code, not checked-in binaries, so a palette change re-propagates:
+
+Both are generated from a single source rather than checked-in binaries, so a
+palette change re-propagates:
 
 ```powershell
-npm run icons:generate      # SVG -> resources/*.png (via sharp)
-npx @capacitor/assets generate --android
+flutter pub run flutter_launcher_icons
+flutter pub run flutter_native_splash:create
 ```
 
-- Source art: `scripts/generate-icons.mjs` (dark canvas, cream clock, teal ring —
-  matches `public/favicon.svg` and the app palette).
-- The mark is drawn at 62% of the canvas so Android's adaptive-icon mask never
-  clips it.
+- Config: `flutter_launcher_icons.yaml` and `flutter_native_splash.yaml`.
 - Theme colors live in `android/app/src/main/res/values/colors.xml`; the launcher
-  background and splash are set to the app's dark canvas so there is no white
-  flash on launch.
+  background and splash use the app's dark canvas so there is no white flash on
+  launch.
+- **Rename note:** the icon and splash artwork still carries the old clock mark.
+  Regenerate from the new Data Dawn artwork before the store screenshots are
+  taken, so the listing and the installed app match.
 
 ## Push notifications — current status
-**Wired:** permission request, token registration, and server storage.
 
-- Client: `src/lib/push.ts` — no-op in a browser; only runs in the native shell.
-- Server: `src/lib/push.api.ts` (registration RPCs) + `src/lib/push.server.ts`
-  (`tokensForUsers` fan-out lookup).
-- Table: `migrations/0003_device_tokens.sql`.
-- Registered automatically on sign-in from `src/components/until-app.tsx`.
+**Wired:** `flutter_local_notifications` is a dependency and the Android manifest
+permits network access. There is no FCM sender yet.
 
 **Not yet wired — the last mile:** actually *sending* a push. That needs FCM
-credentials from a Firebase project:
+credentials from the `datedawn` Firebase project:
 
-1. Create a Firebase project; add an Android app with package name
-  `com.until.app`.
-2. Download `google-services.json` → place at `android/app/google-services.json`
-  (the Gradle file already detects and applies it — see `android/app/build.gradle`).
-3. Add a server-side sender that calls FCM with the tokens from
-  `tokensForUsers(...)`, using a service-account key in an env var. Call it from
-  the event update path to notify the other participants.
+1. In the Firebase console, add an **Android app** to the `datedawn` project with
+   package name **`com.datedawn.app`** (exactly — a mismatch silently breaks
+   sign-in and messaging).
+2. Download `google-services.json` → place it at
+   `android/app/google-services.json`.
+3. Add the `google-services` Gradle plugin in `android/settings.gradle.kts` and
+   apply it in `android/app/build.gradle.kts`, then add
+   `firebase_messaging` to `pubspec.yaml`.
+4. Add request-time permission (`POST_NOTIFICATIONS` on Android 13+,
+   `UNUserNotificationCenter` on iOS) and register the FCM token against the
+   signed-in user.
+5. Send from a server (or a scheduled Cloud Function) using a service-account key
+   held in an env var — never in the app bundle.
 
-Until step 3, notifications are collected and stored but not delivered.
+Until step 5, notifications are local-scheduled only and nothing is delivered
+from the server.
+
+## Firebase setup after the rename
+
+The Firebase project is **`datedawn`** (project number `255395342604`) and the
+package is **`com.datedawn.app`**. To regenerate every platform config file at
+once:
+
+```powershell
+flutterfire configure --project=datedawn
+```
+
+This writes `lib/firebase_options.dart`, `android/app/google-services.json` and
+`ios/Runner/GoogleService-Info.plist`. `lib/firebase_config.dart` remains the
+hand-maintained fallback so the app still builds before that command is run.
+
+**Google Sign-In in release builds:** add the release keystore's SHA-1 and SHA-256
+to the Firebase Android app (Project settings → Your apps). Without them,
+Google Sign-In works in debug and fails in the Play build — a classic pre-launch
+bug.

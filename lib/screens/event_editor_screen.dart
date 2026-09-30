@@ -153,7 +153,7 @@ class _EventEditorScreenState extends ConsumerState<EventEditorScreen> {
           // Circles ticked in the composer: a couple circle shares silently,
           // any other circle's members get an invitation to accept.
           autoShareCircleIds: _selectedCircleIds.toList(),
-          circles: ref.read(circlesProvider).valueOrNull ?? const [],
+          circles: ref.read(circlesProvider).value ?? const [],
         );
       } else {
         await repository.updateEvent(
@@ -551,7 +551,7 @@ class _PreviewStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final now = ref.watch(clockProvider).valueOrNull ?? DateTime.now();
+    final now = ref.watch(clockProvider).value ?? DateTime.now();
     final remaining = remainingUntil(at, now);
 
     return Container(
@@ -633,7 +633,7 @@ class _CollaboratorsState extends ConsumerState<_Collaborators> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final participants =
-        ref.watch(participantsProvider(widget.event.id)).valueOrNull ??
+        ref.watch(participantsProvider(widget.event.id)).value ??
             widget.event.participants;
     final canManage =
         widget.event.canManage(ref.watch(currentUserProvider)?.id);
@@ -879,7 +879,7 @@ class _CirclePicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final circles = ref.watch(circlesProvider).valueOrNull ?? const <Circle>[];
+    final circles = ref.watch(circlesProvider).value ?? const <Circle>[];
     if (circles.isEmpty) return const SizedBox.shrink();
 
     return Column(

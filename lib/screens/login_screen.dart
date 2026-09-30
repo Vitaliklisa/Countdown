@@ -108,7 +108,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final authError = ref.watch(authStateProvider).error;
+    final authError = ref.watch(activeAuthStateProvider).error;
 
     return Scaffold(
       appBar: AppBar(
@@ -129,7 +129,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      _creating ? 'Create your account' : 'Welcome to Until',
+                      _creating
+                          ? 'Create your account'
+                          : 'Welcome to Data Dawn',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 10),

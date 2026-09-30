@@ -2,6 +2,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Riverpod 3 moved `Override` out of the main entrypoint; it lives in `misc`.
+import 'package:flutter_riverpod/misc.dart';
 
 import 'core/theme.dart';
 import 'firebase_config.dart';
@@ -27,7 +29,7 @@ Future<void> main() async {
   // See `lib/firebase_config.dart` and the README.
   await Firebase.initializeApp(options: firebaseOptions);
 
-  runApp(const ProviderScope(child: UntilApp()));
+  runApp(const ProviderScope(child: DataDawnApp()));
 }
 
 /// Shown on web when `flutterfire configure` has not been run yet.
@@ -60,9 +62,9 @@ class _MissingConfigApp extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    'The Until project id is baked in, but the web API key and '
-                    'app id are not. Run this once from the project root, then '
-                    'rebuild:',
+                    'The Firebase project id is baked in, but the web API key '
+                    'and app id are not. Run this once from the project root, '
+                    'then rebuild:',
                     style: TextStyle(
                         fontSize: 14, height: 1.5, color: palette.muted),
                   ),
@@ -76,7 +78,7 @@ class _MissingConfigApp extends StatelessWidget {
                       border: Border.all(color: palette.border),
                     ),
                     child: const SelectableText(
-                      'flutterfire configure --project=until-8ef15',
+                      'flutterfire configure --project=datedawn',
                       style: TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 13,
@@ -101,8 +103,8 @@ class _MissingConfigApp extends StatelessWidget {
   }
 }
 
-class UntilApp extends ConsumerWidget {
-  const UntilApp({super.key});
+class DataDawnApp extends ConsumerWidget {
+  const DataDawnApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -110,7 +112,7 @@ class UntilApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
-      title: 'Until',
+      title: 'Data Dawn',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.build(brightness: Brightness.light),
       darkTheme: AppTheme.build(brightness: Brightness.dark),

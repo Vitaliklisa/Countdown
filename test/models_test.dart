@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:until/core/models.dart';
+import 'package:datedawn/core/models.dart';
 
 void main() {
   group('ParticipantRole', () {

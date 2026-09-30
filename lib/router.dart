@@ -37,9 +37,9 @@ final routerProvider = Provider<GoRouter>((ref) {
     // but never blocks the countdown list: a visitor can browse and create
     // locally, and is only asked to sign in when they share or sync.
     redirect: (context, state) {
-      final auth = ref.read(authStateProvider);
+      final auth = ref.read(activeAuthStateProvider);
       if (auth.isLoading) return null;
-      final signedIn = auth.valueOrNull != null;
+      final signedIn = auth.value != null;
       final goingToLogin = state.matchedLocation == Routes.login;
 
       if (signedIn && goingToLogin) return Routes.home;

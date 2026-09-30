@@ -5,13 +5,18 @@ plugins {
 }
 
 android {
-    namespace = "com.until.until"
+    namespace = "com.datedawn.app"
     compileSdk = flutter.compileSdkVersion
     // Pinned rather than taken from `flutter.ndkVersion`: an explicit version
     // makes Gradle fetch the NDK it needs (including `llvm-strip`, which the
     // release pipeline uses to strip native debug symbols) instead of failing
     // when the host SDK has a different one installed.
-    ndkVersion = "27.0.12077973"
+    //
+    // 28.2.13676358 is the highest version any current plugin requires
+    // (`cloud_firestore`/`jni`, `share_plus`, `shared_preferences_android`),
+    // and NDK releases are backward compatible — pinning lower than a plugin
+    // asks for is what makes the build complain.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -25,8 +30,11 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.until.until"
+        // DateDawn's permanent package name. This value is what Google Play uses
+        // to identify the app: once the first bundle is uploaded it can NEVER be
+        // changed, and every future `google-services.json` must be generated for
+        // exactly this package name.
+        applicationId = "com.datedawn.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

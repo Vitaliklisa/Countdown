@@ -18,7 +18,7 @@ class SettingsScreen extends ConsumerWidget {
     final colors = context.colors;
     final user = ref.watch(currentUserProvider);
     final themeMode = ref.watch(themeModeProvider);
-    final eventCount = ref.watch(eventsProvider).valueOrNull?.length ?? 0;
+    final eventCount = ref.watch(eventsProvider).value?.length ?? 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -54,7 +54,7 @@ class SettingsScreen extends ConsumerWidget {
                         Text(
                           user.displayName?.isNotEmpty == true
                               ? user.displayName!
-                              : 'Until user',
+                              : 'Data Dawn user',
                           style: const TextStyle(
                               fontSize: 15, fontWeight: FontWeight.w600),
                         ),

@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 
 /// Firebase project configuration.
 ///
-/// The project is `until-8ef15`. These values are **public identifiers, not
+/// The project is `datedawn`. These values are **public identifiers, not
 /// secrets** — they ship inside every web bundle and every app binary, which is
 /// why Firebase's own docs say to commit them. What actually protects the data
 /// is `firestore.rules`, which is the authority for every read and write.
@@ -16,14 +16,13 @@ import 'package:flutter/foundation.dart';
 ///
 /// Regenerate both (and this file) with:
 ///
-///   flutterfire configure --project=until-8ef15
+///   flutterfire configure --project=datedawn
 ///
-/// After running that, you can replace the `currentPlatform` getter below with
-/// the generated one-liner — `DefaultFirebaseOptions.currentPlatform` from
-/// `lib/firebase_options.dart` — and delete this file.
+/// That command writes `lib/firebase_options.dart`; this file stays as the
+/// hand-maintained fallback so the app builds before `flutterfire` is run.
 
 /// Project ID — used by the emulator suite and by the rules deploy script.
-const firebaseProjectId = 'until-8ef15';
+const firebaseProjectId = 'datedawn';
 
 /// Web is the one platform that cannot read a native config file, so its
 /// options must be supplied here.
@@ -39,8 +38,8 @@ const firebaseProjectId = 'until-8ef15';
 ///     --dart-define=FIREBASE_API_KEY=... \
 ///     --dart-define=FIREBASE_APP_ID=... \
 ///     --dart-define=FIREBASE_MESSAGING_SENDER_ID=... \
-///     --dart-define=FIREBASE_AUTH_DOMAIN=until-8ef15.firebaseapp.com \
-///     --dart-define=FIREBASE_STORAGE_BUCKET=until-8ef15.appspot.com
+///     --dart-define=FIREBASE_AUTH_DOMAIN=datedawn.firebaseapp.com \
+///     --dart-define=FIREBASE_STORAGE_BUCKET=datedawn.firebasestorage.app
 const _webApiKey = String.fromEnvironment('FIREBASE_API_KEY');
 const _webAppId = String.fromEnvironment('FIREBASE_APP_ID');
 const _webSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
@@ -50,7 +49,7 @@ const _webAuthDomain = String.fromEnvironment(
 );
 const _webStorageBucket = String.fromEnvironment(
   'FIREBASE_STORAGE_BUCKET',
-  defaultValue: '$firebaseProjectId.appspot.com',
+  defaultValue: '$firebaseProjectId.firebasestorage.app',
 );
 
 /// True when the web config has actually been supplied.
@@ -78,8 +77,8 @@ FirebaseOptions get firebaseOptions {
     appId: '',
     messagingSenderId: '',
     projectId: firebaseProjectId,
-    storageBucket: 'until-8ef15.appspot.com',
-    iosBundleId: 'com.until.until',
+    storageBucket: 'datedawn.firebasestorage.app',
+    iosBundleId: 'com.datedawn.app',
     androidClientId: '',
     iosClientId: '',
   );

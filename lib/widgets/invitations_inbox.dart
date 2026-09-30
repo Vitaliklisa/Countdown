@@ -25,8 +25,8 @@ class InvitationsInbox extends ConsumerWidget {
     if (user == null) return const SizedBox.shrink();
 
     final eventInvites =
-        ref.watch(invitationsProvider).valueOrNull ?? const <Invitation>[];
-    final circleInvites = ref.watch(circleInvitationsProvider).valueOrNull ??
+        ref.watch(invitationsProvider).value ?? const <Invitation>[];
+    final circleInvites = ref.watch(circleInvitationsProvider).value ??
         const <CircleInvitation>[];
 
     if (eventInvites.isEmpty && circleInvites.isEmpty) {

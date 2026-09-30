@@ -1,12 +1,8 @@
-# Until — Flutter + Firebase
+# Data Dawn — Flutter + Firebase
 
 Count down to the moments that matter. A Flutter app for **Android, iOS and
 web**, backed entirely by the **free Firebase tier** (Authentication +
 Cloud Firestore). No server to run, no hosting bill.
-
-This is the Flutter counterpart of the React/TanStack "Until" app in the parent
-repo — same product, same design language, same permission model — rebuilt on a
-stack that ships to both app stores and the browser from one codebase.
 
 ---
 
@@ -110,9 +106,9 @@ opens.
 
 ## Setup
 
-> **Project id: `until-8ef15`** — already wired into `lib/firebase_config.dart`.
-> The account that owns the Firebase project still needs to run the steps below
-> once; everything else is done.
+> **Firebase project: `datedawn`** (number `255395342604`) — already wired into
+> `lib/firebase_config.dart`. The account that owns the Firebase project still
+> needs to run the steps below once; everything else is done.
 
 ### 1. Flutter
 
@@ -120,10 +116,10 @@ opens.
 flutter --version   # 3.22 or newer
 ```
 
-### 2. Create the Firebase project
+### 2. Confirm the Firebase project
 
-The project already exists as **`until-8ef15`**. In the
-[Firebase console](https://console.firebase.google.com/project/until-8ef15)
+The project exists as **`datedawn`**. In the
+[Firebase console](https://console.firebase.google.com/project/datedawn)
 confirm that:
 
 1. **Authentication → Sign-in method** has enabled:
@@ -142,7 +138,7 @@ npm install -g firebase-tools      # or: curl -sL https://firebase.tools | bash
 firebase login
 dart pub global activate flutterfire_cli
 
-flutterfire configure --project=until-8ef15
+flutterfire configure --project=datedawn
 ```
 
 `flutterfire configure` writes:
@@ -155,7 +151,7 @@ flutterfire configure --project=until-8ef15
 Until you run it, the app **compiles, analyzes and passes its tests**, and
 Android/iOS are already pointed at the right project. Only the **web** build
 needs the generated keys: open it in a browser and it will show a page telling
-you to run `flutterfire configure --project=until-8ef15` rather than failing
+you to run `flutterfire configure --project=datedawn` rather than failing
 with an opaque Firebase error.
 
 To keep web keys out of the source instead, pass them at build time (they are
@@ -215,6 +211,52 @@ flutter pub get
 flutter run -d chrome      # web
 flutter run                # attached Android/iOS device or emulator
 ```
+
+---
+
+## Android build notes
+
+Four things had to be right before `flutter build appbundle --release` would
+produce an uploadable bundle. They are recorded here because each one fails with
+an error message that points somewhere other than the real cause.
+
+**1. The `flutterEmbedding` meta-data tag is required.**
+
+Flutter's `computeEmbeddingVersion()` returns the *v1* embedding as its default
+and only recognises v2 if `AndroidManifest.xml` contains:
+
+```xml
+<meta-data android:name="flutterEmbedding" android:value="2" />
+```
+
+Without it the build stops with *"Build failed due to use of deleted Android v1
+embedding"* even though nothing in the project is v1. If you ever regenerate the
+manifest, re-add this tag.
+
+**2. Core library desugaring.**
+
+`flutter_local_notifications` uses `java.time` on API levels below 26, so
+`android/app/build.gradle.kts` sets `isCoreLibraryDesugaringEnabled = true` and
+adds `coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")`. Without
+it the build fails at `:app:checkReleaseAarMetadata`.
+
+**3. The base theme must not use AppCompat or `Theme.SplashScreen`.**
+
+The app does not depend on either library, so
+`android/app/src/main/res/values/styles.xml` uses plain platform themes
+(`@android:style/Theme.Black.NoTitleBar`). Referencing `Theme.SplashScreen`
+fails at resource linking with *"resource style/Theme.SplashScreen not found"*.
+
+**4. A Gradle wrapper new enough for the Android Gradle Plugin.**
+
+`android/gradle/wrapper/gradle-wrapper.properties` pins a Gradle version that
+satisfies the AGP the Flutter plugin resolves. A mismatch fails with *"Minimum
+supported Gradle version is X. Current version is Y"*.
+
+The NDK version is pinned in `build.gradle.kts` to the highest one any plugin
+requires. `llvm-strip` (used to shrink the bundle by stripping native debug
+symbols) needs Android SDK `cmdline-tools`; the CI job installs them explicitly,
+because the runner image ships an SDK without them.
 
 ---
 

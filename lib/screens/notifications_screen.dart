@@ -26,10 +26,10 @@ class NotificationsScreen extends ConsumerWidget {
         ),
         title: const Text('Notifications'),
         actions: [
-          if ((responses.valueOrNull ?? const []).any((r) => !r.read))
+          if ((responses.value ?? const []).any((r) => !r.read))
             TextButton(
               onPressed: () async {
-                final unread = (responses.valueOrNull ?? const [])
+                final unread = (responses.value ?? const [])
                     .where((r) => !r.read)
                     .toList();
                 for (final response in unread) {

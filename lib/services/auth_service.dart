@@ -62,8 +62,20 @@ class AuthFailure implements Exception {
 class AuthService {
   AuthService({FirebaseAuth? auth, GoogleSignIn? googleSignIn})
       : _auth = auth ?? FirebaseAuth.instance,
-        _googleSignIn =
-            googleSignIn ?? GoogleSignIn(scopes: const ['email', 'profile']);
+        _googleSignIn = googleSignIn ?? _defaultGoogleSignIn();
+
+  /// Builds the Google client.
+  ///
+  /// google_sign_in 7 removed the bare `GoogleSignIn()` constructor. On mobile
+  /// `instance` is the shared client and the scopes are supplied from the build
+  /// config instead; the idToken the caller needs is still returned by
+  /// `authentication`, so scopes are not repeated here. On web the `instance`
+  /// singleton is created by the platform implementation relative to the current
+  /// Firebase Auth domain, so it must not be constructed eagerly — the web
+  /// branch in `signInWithGoogle` goes through Firebase's popup instead.
+  static GoogleSignIn _defaultGoogleSignIn() {
+    return GoogleSignIn.instance;
+  }
 
   final FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
@@ -136,14 +148,10 @@ class AuthService {
         return AppUser.fromFirebase(credential.user!);
       }
 
-      final account = await _googleSignIn.signIn();
-      if (account == null) {
-        throw const AuthFailure('Sign-in cancelled.');
-      }
-      final auth = await account.authentication;
+      final account = await _googleSignIn.authenticate();
+      final auth = account.authentication;
       final credential = GoogleAuthProvider.credential(
         idToken: auth.idToken,
-        accessToken: auth.accessToken,
       );
       final result = await _auth.signInWithCredential(credential);
       return AppUser.fromFirebase(result.user!);

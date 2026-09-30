@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:until/core/circles.dart';
-import 'package:until/core/models.dart';
+import 'package:datedawn/core/circles.dart';
+import 'package:datedawn/core/models.dart';
 
 /// A fixed instant, so no assertion depends on the date the suite runs.
 /// `DateTime` has no const constructor, so this is a plain `final`.

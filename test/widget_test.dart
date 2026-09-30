@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:until/core/models.dart';
-import 'package:until/core/theme.dart';
-import 'package:until/providers/app_providers.dart';
+import 'package:datedawn/core/models.dart';
+import 'package:datedawn/core/theme.dart';
+import 'package:datedawn/providers/app_providers.dart';
 
 /// A smoke test for the pieces of the app that render without a live Firebase
 /// project. Auth and Firestore are stubbed through provider overrides, so this
@@ -37,7 +37,7 @@ void main() {
           eventsProvider.overrideWith(
             (ref) => Stream.value(const <CountdownEvent>[]),
           ),
-          authStateProvider.overrideWith((ref) => Stream.value(null)),
+          activeAuthStateProvider.overrideWith((ref) => Stream.value(null)),
         ],
         child: MaterialApp(
           theme: AppTheme.build(brightness: Brightness.dark),

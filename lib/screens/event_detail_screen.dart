@@ -54,8 +54,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   }
 
   CountdownEvent? _find() {
-    final events =
-        ref.read(eventsProvider).valueOrNull ?? const <CountdownEvent>[];
+    final events = ref.read(eventsProvider).value ?? const <CountdownEvent>[];
     for (final event in events) {
       if (event.id == widget.eventId) return event;
     }
@@ -80,7 +79,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
     final colors = context.colors;
     final eventsAsync = ref.watch(eventsProvider);
     final event = _find();
-    final now = ref.watch(clockProvider).valueOrNull ?? DateTime.now();
+    final now = ref.watch(clockProvider).value ?? DateTime.now();
 
     if (eventsAsync.isLoading && event == null) {
       return const Scaffold(
@@ -113,9 +112,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
     final user = ref.watch(currentUserProvider);
     final arrived = !event.at.isAfter(now);
     final participants =
-        ref.watch(participantsProvider(event.id)).valueOrNull ??
-            event.participants;
-    final notes = ref.watch(notesProvider(event.id)).valueOrNull ?? event.notes;
+        ref.watch(participantsProvider(event.id)).value ?? event.participants;
+    final notes = ref.watch(notesProvider(event.id)).value ?? event.notes;
     final others = participants.where((p) => p.userId != user?.id).toList();
 
     return Scaffold(

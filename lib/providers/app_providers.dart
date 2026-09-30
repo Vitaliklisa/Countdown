@@ -17,14 +17,21 @@ final eventRepositoryProvider =
 
 /// The signed-in user, or `null`. `AsyncValue.loading` covers the first frame,
 /// before Firebase has restored the persisted session.
-final authStateProvider = StreamProvider<AppUser?>((ref) {
+///
+/// `autoDispose` is deliberate under Riverpod 3: when the last listener goes
+/// away (the app is backgrounded and the router's listener is the only one
+/// left), the Firebase auth subscription is torn down instead of being kept
+/// alive for the process lifetime, which is what avoids a leaked listener
+/// across hot restart.
+final activeAuthStateProvider = StreamProvider<AppUser?>((ref) {
+  ref.keepAlive();
   return ref.watch(authServiceProvider).authStateChanges();
-});
+}, isAutoDispose: true);
 
 /// Just the user, with loading collapsed to `null` for widgets that only need
 /// to branch on signed-in vs signed-out.
 final currentUserProvider = Provider<AppUser?>((ref) {
-  return ref.watch(authStateProvider).valueOrNull;
+  return ref.watch(activeAuthStateProvider).value;
 });
 
 /// All countdowns visible to the signed-in user, nearest first.
@@ -74,15 +81,15 @@ final responsesProvider = StreamProvider<List<InvitationResponse>>((ref) {
 
 /// How many answers are still unread, for the badge on the home screen.
 final unreadResponseCountProvider = Provider<int>((ref) {
-  final responses = ref.watch(responsesProvider).valueOrNull ?? const [];
+  final responses = ref.watch(responsesProvider).value ?? const [];
   return responses.where((r) => !r.read).length;
 });
 
 /// Everything awaiting the signed-in user's answer: countdown invites and
 /// circle invites, in one list for a single inbox.
 final pendingInviteCountProvider = Provider<int>((ref) {
-  final events = ref.watch(invitationsProvider).valueOrNull ?? const [];
-  final circles = ref.watch(circleInvitationsProvider).valueOrNull ?? const [];
+  final events = ref.watch(invitationsProvider).value ?? const [];
+  final circles = ref.watch(circleInvitationsProvider).value ?? const [];
   return events.length + circles.length;
 });
 
@@ -100,7 +107,18 @@ final notesProvider =
 
 /// Which countdown is pinned as the hero. `null` means "pick automatically":
 /// the soonest upcoming one.
-final selectedEventIdProvider = StateProvider<String?>((ref) => null);
+///
+/// Riverpod 3 retired `StateProvider`; a plain `Notifier` is the replacement and
+/// gives the same `ref.read(...).set(id)` ergonomics at the call sites.
+class SelectedEventId extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? id) => state = id;
+}
+
+final selectedEventIdProvider =
+    NotifierProvider<SelectedEventId, String?>(SelectedEventId.new);
 
 /// The countdown shown on the home screen.
 ///
@@ -108,8 +126,7 @@ final selectedEventIdProvider = StateProvider<String?>((ref) => null);
 /// the soonest future event, and if everything is in the past, the most recent
 /// one.
 final featuredEventProvider = Provider<CountdownEvent?>((ref) {
-  final events =
-      ref.watch(eventsProvider).valueOrNull ?? const <CountdownEvent>[];
+  final events = ref.watch(eventsProvider).value ?? const <CountdownEvent>[];
   if (events.isEmpty) return null;
 
   final selectedId = ref.watch(selectedEventIdProvider);
@@ -137,8 +154,12 @@ final clockProvider = StreamProvider<DateTime>((ref) {
 
 /// Theme mode, persisted per device (not per account — appearance is a device
 /// preference, and requiring a sign-in to pick light/dark would be odd).
-class ThemeModeController extends StateNotifier<ThemeMode> {
-  ThemeModeController() : super(ThemeMode.dark);
+///
+/// Riverpod 3 retired `StateNotifierProvider`; `Notifier` is its successor and
+/// removes the `state`-vs-`super` split that used to bite here.
+class ThemeModeController extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() => ThemeMode.dark;
 
   void set(ThemeMode mode) => state = mode;
 
@@ -146,8 +167,8 @@ class ThemeModeController extends StateNotifier<ThemeMode> {
       state = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
 }
 
-final themeModeProvider = StateNotifierProvider<ThemeModeController, ThemeMode>(
-    (ref) => ThemeModeController());
+final themeModeProvider =
+    NotifierProvider<ThemeModeController, ThemeMode>(ThemeModeController.new);
 
 /// Small helper so screens can run an action and show either a success or a
 /// failure message without repeating try/catch.

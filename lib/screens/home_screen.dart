@@ -20,14 +20,14 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authStateProvider);
+    final auth = ref.watch(activeAuthStateProvider);
     final eventsAsync = ref.watch(eventsProvider);
     final featured = ref.watch(featuredEventProvider);
-    final now = ref.watch(clockProvider).valueOrNull ?? DateTime.now();
+    final now = ref.watch(clockProvider).value ?? DateTime.now();
 
     if (auth.isLoading) return const _LoadingScaffold();
 
-    final events = eventsAsync.valueOrNull ?? const <CountdownEvent>[];
+    final events = eventsAsync.value ?? const <CountdownEvent>[];
     final hasError = eventsAsync.hasError;
 
     return Scaffold(
@@ -113,8 +113,9 @@ class _EmptyHome extends ConsumerWidget {
         Text('Name a day.', style: Theme.of(context).textTheme.headlineLarge),
         const SizedBox(height: 12),
         Text(
-          'Pick a future moment — a wedding, a launch, a trip home. Until counts '
-          'the years, months, days and hours left, then celebrates when it arrives.',
+          'Pick a future moment — a wedding, a launch, a trip home. Data Dawn '
+          'counts the years, months, days and hours left, then celebrates when '
+          'it arrives.',
           style: TextStyle(fontSize: 15, height: 1.5, color: colors.muted),
         ),
         const SizedBox(height: 28),
@@ -311,9 +312,8 @@ class _HeroHome extends ConsumerWidget {
                       context,
                       ref,
                       event: featured,
-                      onDeleted: () => ref
-                          .read(selectedEventIdProvider.notifier)
-                          .state = null,
+                      onDeleted: () =>
+                          ref.read(selectedEventIdProvider.notifier).set(null),
                     ),
                     icon: const Icon(Icons.more_horiz_rounded, size: 18),
                     label: const Text('Options'),
@@ -391,7 +391,7 @@ class _EventRow extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          ref.read(selectedEventIdProvider.notifier).state = event.id;
+          ref.read(selectedEventIdProvider.notifier).set(event.id);
         },
         onLongPress: () => showEventActionsSheet(context, ref, event: event),
         child: Container(
